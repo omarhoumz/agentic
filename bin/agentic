@@ -26,6 +26,8 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 . "$here/../lib/provider.sh"
 # shellcheck source=../lib/switch.sh
 . "$here/../lib/switch.sh"
+# shellcheck source=../lib/migrate.sh
+. "$here/../lib/migrate.sh"
 
 usage() {
   cat <<EOF
@@ -176,6 +178,7 @@ case "$1" in
   relogin)          shift; cmd_relogin "$@" ;;
   use)              shift; cmd_use "$@" ;;
   run)              shift; cmd_run "$@" ;;
+  migrate)          shift; cmd_migrate "$@" ;;
   *)
     die "unknown command: $1 (try 'agentic --help')" ;;
 esac

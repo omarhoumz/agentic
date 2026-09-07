@@ -23,6 +23,29 @@ backup_live_auth() {
   harden_auth_file "$_bla_live.$_bla_stamp.bak"
 }
 
+adopt_live_auth() {
+  _ala_provider="$1"
+  _ala_live=$(provider_live_auth)
+  [ -f "$_ala_live" ] || return 0
+  [ -L "$_ala_live" ] && return 0
+
+  _ala_active=$(get_active "$_ala_provider")
+  [ -n "$_ala_active" ] || {
+    warn "live auth is a regular file but no $_ala_provider account is active; it was backed up"
+    return 0
+  }
+  _ala_auth=$(provider_auth_artifact "$_ala_active")
+  [ -d "$(dirname "$_ala_auth")" ] || {
+    warn "active $_ala_provider account '$_ala_active' is missing; live auth was not replaced"
+    return 1
+  }
+
+  cp -p "$_ala_live" "$_ala_auth.tmp" || die "cannot update $_ala_auth"
+  mv "$_ala_auth.tmp" "$_ala_auth" || die "cannot update $_ala_auth"
+  harden_auth_file "$_ala_auth"
+  info "adopted live auth into '$_ala_active'"
+}
+
 activate_account() {
   _aa_provider="$1"
   _aa_name="$2"
@@ -31,6 +54,7 @@ activate_account() {
 
   mkdir -p "$(dirname "$_aa_live")" || die "cannot create live auth directory"
   backup_live_auth
+  adopt_live_auth "$_aa_provider" || return 1
   ln -sfn "$_aa_auth" "$_aa_live" || die "cannot link $_aa_live"
   harden_auth_file "$_aa_auth"
   set_active "$_aa_provider" "$_aa_name"

@@ -148,6 +148,158 @@ cmd_relogin() {
   cmd_login "$1" "$2" --force
 }
 
+auth_is_parseable() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -e . "$1" >/dev/null 2>&1
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json, sys; json.load(open(sys.argv[1]))' "$1" >/dev/null 2>&1
+    return
+  fi
+  die "check requires jq or python3 to validate JSON"
+}
+
+cmd_check() {
+  _cc_provider="${1:-}"
+  _cc_name="${2:-}"
+  [ -n "$_cc_provider" ] && [ -n "$_cc_name" ] || die "usage: agentic check <provider> <name> [--deep]"
+  shift 2
+
+  _cc_deep=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --deep) _cc_deep=1 ;;
+      *) die "unknown option for check: $1" ;;
+    esac
+    shift
+  done
+
+  validate_provider "$_cc_provider"
+  validate_name "$_cc_name"
+  load_provider "$_cc_provider"
+  _cc_auth=$(provider_auth_artifact "$_cc_name")
+  [ -f "$_cc_auth" ] || die "'$_cc_name' has no auth.json"
+
+  if auth_is_parseable "$_cc_auth"; then
+    info "structure: valid"
+  else
+    warn "structure: invalid JSON"
+    return 1
+  fi
+
+  if [ "$_cc_deep" -eq 1 ]; then
+    if provider_status "$_cc_name"; then
+      info "$_cc_provider: ok"
+    else
+      warn "$_cc_provider: status failed"
+      return 1
+    fi
+  fi
+}
+
+repair_provider() {
+  _rp_provider="$1"
+  load_provider "$_rp_provider"
+  _rp_live=$(provider_live_auth)
+  _rp_active=$(get_active "$_rp_provider")
+
+  [ -f "$_rp_live" ] && [ ! -L "$_rp_live" ] || return 0
+  if [ -z "$_rp_active" ]; then
+    warn "$_rp_provider live auth is a regular file but no account is active; leaving it in place"
+    return 0
+  fi
+  if [ ! -d "$(account_dir "$_rp_provider" "$_rp_active")" ]; then
+    warn "$_rp_provider active account '$_rp_active' is missing; leaving live auth in place"
+    return 0
+  fi
+
+  activate_account "$_rp_provider" "$_rp_active"
+  info "repaired $_rp_provider account '$_rp_active'"
+}
+
+cmd_repair() {
+  _cr_provider=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --yes|-y) ;;
+      codex|cursor)
+        [ -z "$_cr_provider" ] || die "repair takes at most one provider"
+        _cr_provider="$1"
+        ;;
+      *) die "unknown option for repair: $1" ;;
+    esac
+    shift
+  done
+
+  if [ -n "$_cr_provider" ]; then
+    repair_provider "$_cr_provider"
+  else
+    for _cr_each in $PROVIDER_LIST; do
+      repair_provider "$_cr_each"
+    done
+  fi
+}
+
+cmd_rm() {
+  _crm_provider="${1:-}"
+  _crm_name="${2:-}"
+  [ -n "$_crm_provider" ] && [ -n "$_crm_name" ] || die "usage: agentic rm <provider> <name> [--yes]"
+  shift 2
+
+  _crm_yes=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --yes|-y) _crm_yes=1 ;;
+      *) die "unknown option for rm: $1" ;;
+    esac
+    shift
+  done
+
+  validate_provider "$_crm_provider"
+  validate_name "$_crm_name"
+  _crm_dir=$(account_dir "$_crm_provider" "$_crm_name")
+  [ -d "$_crm_dir" ] || die "no such account: $_crm_name"
+  load_provider "$_crm_provider"
+
+  if [ "$_crm_yes" -eq 0 ]; then
+    printf "delete account '%s' and its saved credential? [y/N] " "$_crm_name"
+    read -r _crm_reply || _crm_reply=""
+    case "$_crm_reply" in
+      y|Y|yes|YES) ;;
+      *) info "cancelled"; return 0 ;;
+    esac
+  fi
+
+  _crm_active=$(get_active "$_crm_provider")
+  _crm_live=$(provider_live_auth)
+  if [ "$_crm_active" = "$_crm_name" ]; then
+    if [ -L "$_crm_live" ] && [ -e "$_crm_live" ] && [ ! -e "$_crm_live.bak" ]; then
+      cp -p "$_crm_live" "$_crm_live.bak" || die "backup failed"
+      harden_auth_file "$_crm_live.bak"
+    fi
+    [ -L "$_crm_live" ] && rm -f "$_crm_live"
+    clear_active "$_crm_provider"
+    warn "removed active account '$_crm_name'; no account is active now"
+  fi
+
+  rm -rf "$_crm_dir"
+  info "removed $_crm_name"
+}
+
+cmd_restore() {
+  [ $# -eq 1 ] || die "usage: agentic restore <provider>"
+  validate_provider "$1"
+  load_provider "$1"
+  _crs_live=$(provider_live_auth)
+  [ -f "$_crs_live.bak" ] || die "no backup at $_crs_live.bak"
+  rm -f "$_crs_live"
+  cp -p "$_crs_live.bak" "$_crs_live" || die "restore failed"
+  harden_auth_file "$_crs_live"
+  clear_active "$1"
+  info "restored $_crs_live from backup"
+}
+
 cmd_run() {
   _cr_provider="${1:-}"
   _cr_name="${2:-}"
@@ -177,6 +329,10 @@ case "$1" in
   login)            shift; cmd_login "$@" ;;
   relogin)          shift; cmd_relogin "$@" ;;
   use)              shift; cmd_use "$@" ;;
+  check)            shift; cmd_check "$@" ;;
+  repair)           shift; cmd_repair "$@" ;;
+  rm)               shift; cmd_rm "$@" ;;
+  restore)          shift; cmd_restore "$@" ;;
   run)              shift; cmd_run "$@" ;;
   migrate)          shift; cmd_migrate "$@" ;;
   *)

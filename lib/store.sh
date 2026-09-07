@@ -67,6 +67,11 @@ set_active() {
   printf '%s\n' "$2" > "$_sa_marker"
 }
 
+clear_active() {
+  validate_provider "$1"
+  rm -f "$(active_marker "$1")"
+}
+
 get_active() {
   validate_provider "$1"
   _ga_marker=$(active_marker "$1")

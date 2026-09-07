@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Cursor Agent CLI provider contract (stub — login/use/run wired in later tasks).
+# Cursor Agent CLI provider contract.
 
 provider_live_home() {
   printf '%s\n' "${AGENTIC_CURSOR_LIVE_HOME:-$HOME/.cursor}"
@@ -29,9 +29,11 @@ provider_cli_bin() {
 }
 
 provider_login() {
-  :
+  _pl_home=$(provider_account_home "$1")
+  CURSOR_CONFIG_DIR="$_pl_home" AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login
 }
 
 provider_status() {
-  :
+  _ps_home=$(provider_account_home "$1")
+  CURSOR_CONFIG_DIR="$_ps_home" AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login status
 }

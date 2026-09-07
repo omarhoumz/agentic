@@ -14,6 +14,9 @@ AGENTIC_VERSION="0.1.0"
 # Where saved accounts live. Overridable so the test suite can use a scratch dir.
 : "${AGENTIC_DIR:=$HOME/.agentic}"
 
+# Repo root for provider scripts. bin/agentic sets this explicitly; derive when unset.
+: "${AGENTIC_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+
 PROVIDER_LIST="codex cursor"
 
 # ---------------------------------------------------------------------------

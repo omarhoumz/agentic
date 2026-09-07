@@ -22,6 +22,8 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 . "$here/../lib/common.sh"
 # shellcheck source=../lib/store.sh
 . "$here/../lib/store.sh"
+# shellcheck source=../lib/provider.sh
+. "$here/../lib/provider.sh"
 
 usage() {
   cat <<EOF

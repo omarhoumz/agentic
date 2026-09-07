@@ -20,6 +20,8 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 
 # shellcheck source=../lib/common.sh
 . "$here/../lib/common.sh"
+# shellcheck source=../lib/store.sh
+. "$here/../lib/store.sh"
 
 usage() {
   cat <<EOF
@@ -36,11 +38,43 @@ Version $AGENTIC_VERSION
 EOF
 }
 
+cmd_list() {
+  if [ $# -eq 0 ]; then
+    for _cl_provider in $PROVIDER_LIST; do
+      printf '%s:\n' "$_cl_provider"
+      _cl_accounts=$(list_accounts "$_cl_provider")
+      if [ -n "$_cl_accounts" ]; then
+        echo "$_cl_accounts" | while IFS= read -r _cl_name; do
+          [ -n "$_cl_name" ] || continue
+          printf '  %s\n' "$_cl_name"
+        done
+      fi
+    done
+    return 0
+  fi
+
+  validate_provider "$1"
+  list_accounts "$1"
+}
+
+cmd_which() {
+  [ $# -eq 1 ] || die "usage: agentic which <provider>"
+  validate_provider "$1"
+  _cw_active=$(get_active "$1")
+  if [ -n "$_cw_active" ]; then
+    printf '%s\n' "$_cw_active"
+  else
+    info "no account is active for $1"
+  fi
+}
+
 [ $# -gt 0 ] || { usage; exit 1; }
 
 case "$1" in
   help|-h|--help)   usage ;;
   --version|-V)     print_version agentic ;;
+  list)             shift; cmd_list "$@" ;;
+  which)            shift; cmd_which "$@" ;;
   *)
     die "unknown command: $1 (try 'agentic --help')" ;;
 esac

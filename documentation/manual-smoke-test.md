@@ -19,12 +19,17 @@ codex login status   # or equivalent
 
 ## Step 2: Cursor account
 
+- [ ] Set the file credential store before login: Cursor creates `auth.json`
+  only with `AGENT_CLI_CREDENTIAL_STORE=file`; Keychain-default installs may
+  not have that file.
 - [ ] Log in, run one-off via `run`, switch active account, confirm shim
 
 ```bash
+export AGENT_CLI_CREDENTIAL_STORE=file
 agentic login cursor personal
 agentic run cursor personal -- whoami
 agentic use cursor personal
+# shell-init must be active (or export the variable above) for bare agent
 agent whoami
 ```
 

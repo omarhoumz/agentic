@@ -66,10 +66,7 @@ _agentic() {
       ;;
     repair)
       if (( CURRENT == 3 )); then
-        _alternative 'providers:provider:_agentic_providers' \
-          'options:option:((--yes\:"do not prompt"))'
-      else
-        _values 'option' '--yes[do not prompt]'
+        _agentic_providers
       fi
       ;;
     shell-init)

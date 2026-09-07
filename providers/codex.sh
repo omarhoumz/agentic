@@ -18,6 +18,15 @@ provider_live_auth() {
   printf '%s\n' "$(provider_live_home)/auth.json"
 }
 
+link_shared_config() {
+  _lsc_account_home=$(provider_account_home "$1")
+  _lsc_live_config="$(provider_live_home)/config.toml"
+  _lsc_account_config="$_lsc_account_home/config.toml"
+  [ -e "$_lsc_account_config" ] || [ -L "$_lsc_account_config" ] && return 0
+  [ -f "$_lsc_live_config" ] || return 0
+  ln -s "$_lsc_live_config" "$_lsc_account_config" || die "cannot link $_lsc_account_config"
+}
+
 provider_run_env() {
   printf 'CODEX_HOME=%s\n' "$(provider_account_home "$1")"
 }

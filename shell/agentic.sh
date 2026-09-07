@@ -4,6 +4,10 @@
 #
 # Wraps `codex` and `agent` so bare login/logout cannot overwrite stored accounts.
 
+if [ -d "${AGENTIC_DIR:-$HOME/.agentic}" ]; then
+  export AGENT_CLI_CREDENTIAL_STORE=file
+fi
+
 # ---------------------------------------------------------------------------
 # codex wrapper
 # ---------------------------------------------------------------------------

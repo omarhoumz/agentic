@@ -66,6 +66,13 @@ agentic list cursor
 
 `agentic run` isolates a single CLI invocation to the requested account.
 `agentic use` changes the account used by a normal `codex` or `agent` command.
+Cursor management requires `AGENT_CLI_CREDENTIAL_STORE=file`: `auth.json` is
+created only after logging in with that setting. `agentic login` and `run` set
+it automatically; for `agentic use cursor …`, install shell-init (or export
+the variable manually) before using bare `agent`. Cursor `run` uses a separate
+config directory, so it does not merge the normal Cursor configuration.
+
+`agentic check` uses either `jq` or `python3` to validate credential JSON.
 
 ## Migrate from codex-accounts
 
@@ -96,7 +103,9 @@ agentic shell-init
 
 They prevent bare `codex login`, `codex logout`, `agent login`, and `agent
 logout` from overwriting a managed account. Use `agentic shell-init --remove`
-to remove the marked block later.
+to remove the marked block later. While the wrappers are active, they also
+export `AGENT_CLI_CREDENTIAL_STORE=file` so bare `agent` follows the managed
+Cursor file credential store.
 
 ## Scope and status
 

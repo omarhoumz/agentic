@@ -21,6 +21,9 @@ backup_live_auth() {
   _bla_stamp=$(date +%Y%m%d-%H%M%S)
   cp -p "$_bla_live" "$_bla_live.$_bla_stamp.bak" || die "backup failed"
   harden_auth_file "$_bla_live.$_bla_stamp.bak"
+  printf '%s\n' "$_bla_live".*.bak | sort -r | awk 'NR > 3' | while IFS= read -r _bla_old; do
+    rm -f "$_bla_old"
+  done
 }
 
 adopt_live_auth() {
@@ -36,8 +39,8 @@ adopt_live_auth() {
   }
   _ala_auth=$(provider_auth_artifact "$_ala_active")
   [ -d "$(dirname "$_ala_auth")" ] || {
-    warn "active $_ala_provider account '$_ala_active' is missing; live auth was not replaced"
-    return 1
+    warn "active $_ala_provider account '$_ala_active' is missing; live auth was backed up"
+    return 0
   }
   if [ -f "$_ala_auth" ] && [ ! "$_ala_live" -nt "$_ala_auth" ]; then
     info "live auth is not newer than '$_ala_active'; backup preserved it"
@@ -56,9 +59,15 @@ activate_account() {
   _aa_live=$(provider_live_auth)
   _aa_auth=$(provider_auth_artifact "$_aa_name")
 
-  mkdir -p "$(dirname "$_aa_live")" || die "cannot create live auth directory"
+  if [ ! -d "$(dirname "$_aa_live")" ]; then
+    mkdir -p "$(dirname "$_aa_live")" || die "cannot create live auth directory"
+    chmod 700 "$(dirname "$_aa_live")" || die "cannot secure live auth directory"
+  fi
   backup_live_auth
   adopt_live_auth "$_aa_provider" || return 1
+  if command -v link_shared_config >/dev/null 2>&1; then
+    link_shared_config "$_aa_name"
+  fi
   ln -sfn "$_aa_auth" "$_aa_live" || die "cannot link $_aa_live"
   harden_auth_file "$_aa_auth"
   set_active "$_aa_provider" "$_aa_name"

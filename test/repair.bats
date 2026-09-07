@@ -9,7 +9,7 @@ load helper
   printf '{"token":"new"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
   printf 'work\n' > "$AGENTIC_DIR/codex/.current"
 
-  run "$AGENTIC" repair codex --yes
+  run "$AGENTIC" repair codex
 
   [ "$status" -eq 0 ]
   [ -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
@@ -24,7 +24,7 @@ load helper
   printf '{"token":"new"}\n' > "$AGENTIC_CURSOR_LIVE_HOME/auth.json"
   printf 'work\n' > "$AGENTIC_DIR/cursor/.current"
 
-  run "$AGENTIC" repair cursor --yes
+  run "$AGENTIC" repair cursor
 
   [ "$status" -eq 0 ]
   [ -L "$AGENTIC_CURSOR_LIVE_HOME/auth.json" ]
@@ -61,6 +61,37 @@ load helper
   [ "$status" -eq 0 ]
   [ "$(cat "$AGENTIC_DIR/codex/work/auth.json")" = '{"token":"newer"}' ]
   [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak")" = '{"token":"stale"}' ]
+}
+
+@test "use --force switches despite a missing formerly active account" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/personal"
+  printf '{"token":"stranded"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf '{"token":"personal"}\n' > "$AGENTIC_DIR/codex/personal/auth.json"
+  printf 'missing\n' > "$AGENTIC_DIR/codex/.current"
+
+  run "$AGENTIC" use codex personal --force
+
+  [ "$status" -eq 0 ]
+  [ -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
+  [ "$("$AGENTIC" which codex)" = "personal" ]
+  [ -f "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak" ]
+}
+
+@test "activation retains only three timestamped live-auth backups" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work"
+  printf '{"token":"live"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+  for stamp in 20260907-190001 20260907-190002 20260907-190003 20260907-190004; do
+    printf '%s\n' "$stamp" > "$AGENTIC_CODEX_LIVE_HOME/auth.json.$stamp.bak"
+  done
+
+  run "$AGENTIC" use codex work
+
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$AGENTIC_CODEX_LIVE_HOME"/auth.json.*.bak | wc -l | tr -d ' ')" -eq 3 ]
+  [ -f "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak" ]
 }
 
 @test "check validates stored JSON and runs a deep provider check" {

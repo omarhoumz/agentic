@@ -49,8 +49,7 @@ _agentic_complete() {
       [ "$COMP_CWORD" -gt 2 ] && _agentic_reply "--names" "$cur"
       ;;
     repair)
-      [ "$COMP_CWORD" -eq 2 ] && _agentic_reply "$providers --yes" "$cur"
-      [ "$COMP_CWORD" -gt 2 ] && _agentic_reply "--yes" "$cur"
+      [ "$COMP_CWORD" -eq 2 ] && _agentic_reply "$providers" "$cur"
       ;;
     shell-init)
       if [ "$prev" = "--rc" ]; then

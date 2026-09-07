@@ -45,7 +45,7 @@ ${C_BOLD}COMMANDS${C_RESET}
   which    <provider>                        Print the active account
   list     [<provider>] [--names]            List saved accounts
   check    <provider> <name> [--deep]        Check account credentials
-  repair   [<provider>] [--yes]              Repair replaced live auth
+  repair   [<provider>]                      Repair replaced live auth
   rm       <provider> <name> [--yes]         Delete an account
   restore  <provider>                        Restore backed-up live auth
   migrate                                   Copy codex-accounts data into agentic
@@ -60,29 +60,38 @@ EOF
 }
 
 cmd_list() {
-  if [ $# -eq 0 ]; then
+  _cl_names=0
+  _cl_provider=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --names) _cl_names=1 ;;
+      *)
+        [ -z "$_cl_provider" ] || die "list takes at most one provider"
+        _cl_provider="$1"
+        ;;
+    esac
+    shift
+  done
+
+  if [ -z "$_cl_provider" ]; then
     for _cl_provider in $PROVIDER_LIST; do
-      printf '%s:\n' "$_cl_provider"
       _cl_accounts=$(list_accounts "$_cl_provider")
+      if [ "$_cl_names" -eq 0 ]; then
+        printf '%s:\n' "$_cl_provider"
+      fi
       if [ -n "$_cl_accounts" ]; then
         echo "$_cl_accounts" | while IFS= read -r _cl_name; do
           [ -n "$_cl_name" ] || continue
-          printf '  %s\n' "$_cl_name"
+          if [ "$_cl_names" -eq 1 ]; then
+            printf '%s\n' "$_cl_name"
+          else
+            printf '  %s\n' "$_cl_name"
+          fi
         done
       fi
     done
     return 0
   fi
-
-  _cl_provider="$1"
-  shift
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --names) ;;
-      *) die "unknown option for list: $1" ;;
-    esac
-    shift
-  done
 
   validate_provider "$_cl_provider"
   list_accounts "$_cl_provider"
@@ -247,7 +256,6 @@ cmd_repair() {
   _cr_provider=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --yes|-y) ;;
       codex|cursor)
         [ -z "$_cr_provider" ] || die "repair takes at most one provider"
         _cr_provider="$1"

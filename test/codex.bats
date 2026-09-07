@@ -49,3 +49,16 @@ load helper
   [ -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
   [ "$("$AGENTIC" which codex)" = "work" ]
 }
+
+@test "codex activation links an existing live config into the account" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work"
+  printf 'model = "gpt-5"\n' > "$AGENTIC_CODEX_LIVE_HOME/config.toml"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+
+  run "$AGENTIC" use codex work
+
+  [ "$status" -eq 0 ]
+  [ -L "$AGENTIC_DIR/codex/work/config.toml" ]
+  [ "$(readlink "$AGENTIC_DIR/codex/work/config.toml")" = "$AGENTIC_CODEX_LIVE_HOME/config.toml" ]
+}

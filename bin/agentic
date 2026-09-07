@@ -319,6 +319,130 @@ cmd_run() {
   exec "$(provider_cli_bin)" "$@"
 }
 
+# --------------------------------------------------------------------------
+# shell-init - add or remove the shell integration
+# --------------------------------------------------------------------------
+
+AGENTIC_RC_MARK_START="# >>> agentic shell-init >>>"
+AGENTIC_RC_MARK_END="# <<< agentic shell-init <<<"
+
+shell_snippet_path() {
+  printf '%s\n' "$AGENTIC_ROOT/shell/agentic.sh"
+}
+
+default_rcfile() {
+  case "${SHELL##*/}" in
+    zsh)  printf '%s\n' "${ZDOTDIR:-$HOME}/.zshrc" ;;
+    bash) printf '%s\n' "$HOME/.bashrc" ;;
+    *)    printf '%s\n' "$HOME/.profile" ;;
+  esac
+}
+
+path_owner() {
+  stat -f '%Su' "$1" 2>/dev/null && return 0
+  stat -c '%U' "$1" 2>/dev/null && return 0
+  ls -ld "$1" 2>/dev/null | awk '{print $3; exit}'
+}
+
+rc_has_integration() {
+  [ -f "$1" ] || return 1
+  grep -qF "$AGENTIC_RC_MARK_START" "$1"
+}
+
+rc_add_integration() {
+  _rai_rc="$1"
+  _rai_snippet=$(shell_snippet_path)
+
+  [ -f "$_rai_snippet" ] || die "cannot find the shell snippet at $_rai_snippet"
+
+  if rc_has_integration "$_rai_rc"; then
+    info "shell integration already present in $_rai_rc"
+    return 0
+  fi
+
+  if [ -e "$_rai_rc" ]; then
+    if [ ! -w "$_rai_rc" ]; then
+      die "cannot write $_rai_rc - it is not writable by you
+  owned by '$(path_owner "$_rai_rc")', you are '$(id -un)'
+  take ownership:
+    sudo chown $(id -un) $_rai_rc
+
+  or use a different file:
+    agentic shell-init --rc ~/.zprofile
+
+  or add this line yourself:
+    source \"$_rai_snippet\""
+    fi
+  else
+    _rai_dir=$(dirname "$_rai_rc")
+    mkdir -p "$_rai_dir" || die "cannot create $_rai_dir"
+    [ -w "$_rai_dir" ] || die "cannot create $_rai_rc - $_rai_dir is not writable
+  owned by '$(path_owner "$_rai_dir")', you are '$(id -un)'
+  add this line yourself instead:
+    source \"$_rai_snippet\""
+  fi
+
+  {
+    printf '\n%s\n' "$AGENTIC_RC_MARK_START"
+    # shellcheck disable=SC2016
+    printf '# Intercepts `codex login`/`logout` and `agent login`/`logout`.\n'
+    printf '# Remove with: agentic shell-init --remove\n'
+    printf 'source "%s"\n' "$_rai_snippet"
+    printf '%s\n' "$AGENTIC_RC_MARK_END"
+  } >> "$_rai_rc" || die "cannot write $_rai_rc"
+
+  info "${C_GREEN}added${C_RESET} shell integration to $_rai_rc"
+  info "${C_DIM}active in new shells; for this one:  source $_rai_rc${C_RESET}"
+}
+
+rc_remove_integration() {
+  _rri_rc="$1"
+  if ! rc_has_integration "$_rri_rc"; then
+    info "no shell integration in $_rri_rc"
+    return 0
+  fi
+
+  [ -w "$_rri_rc" ] || die "cannot edit $_rri_rc - it is not writable by you
+  owned by '$(path_owner "$_rri_rc")', you are '$(id -un)'
+  take ownership with:  sudo chown $(id -un) $_rri_rc
+  or delete the block between the agentic shell-init markers by hand"
+
+  _rri_tmp="$_rri_rc.agentic.tmp"
+  awk -v s="$AGENTIC_RC_MARK_START" -v e="$AGENTIC_RC_MARK_END" '
+    $0 == s { skip = 1 }
+    !skip {
+      if ($0 == "") { blanks++ }
+      else { while (blanks > 0) { print ""; blanks-- }; print }
+    }
+    $0 == e { skip = 0 }
+  ' "$_rri_rc" > "$_rri_tmp" || die "cannot rewrite $_rri_rc"
+  mv "$_rri_tmp" "$_rri_rc" || die "cannot replace $_rri_rc"
+
+  info "${C_GREEN}removed${C_RESET} shell integration from $_rri_rc"
+}
+
+cmd_shell_init() {
+  rcfile=""; remove=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --remove) remove=1 ;;
+      --rc)     shift; [ $# -gt 0 ] || die "--rc needs a file"; rcfile="$1" ;;
+      --rc=*)   rcfile="${1#--rc=}" ;;
+      --print)  shell_snippet_path; return 0 ;;
+      *)        die "unknown option for shell-init: $1" ;;
+    esac
+    shift
+  done
+
+  [ -n "$rcfile" ] || rcfile=$(default_rcfile)
+
+  if [ "$remove" -eq 1 ]; then
+    rc_remove_integration "$rcfile"
+  else
+    rc_add_integration "$rcfile"
+  fi
+}
+
 [ $# -gt 0 ] || { usage; exit 1; }
 
 case "$1" in
@@ -335,6 +459,7 @@ case "$1" in
   restore)          shift; cmd_restore "$@" ;;
   run)              shift; cmd_run "$@" ;;
   migrate)          shift; cmd_migrate "$@" ;;
+  shell-init)       shift; cmd_shell_init "$@" ;;
   *)
     die "unknown command: $1 (try 'agentic --help')" ;;
 esac

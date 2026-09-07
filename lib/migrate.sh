@@ -9,6 +9,8 @@
 # ---------------------------------------------------------------------------
 
 cmd_migrate() {
+  [ $# -eq 0 ] || die "usage: agentic migrate"
+
   _mg_src="${CODEX_ACCOUNTS_DIR:-$HOME/.codex-accounts}"
   _mg_dest="$AGENTIC_DIR/codex"
 
@@ -32,7 +34,8 @@ cmd_migrate() {
       continue
     fi
 
-    cp -R "$_mg_entry" "$_mg_account_dest"
+    mkdir -p "$_mg_account_dest"
+    cp -R "$_mg_entry/." "$_mg_account_dest/"
     chmod 700 "$_mg_account_dest"
     _mg_copied=1
   done

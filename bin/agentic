@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# agentic - multi-provider CLI account manager for Codex and Cursor Agent CLI.
+
+set -eu
+
+self="$0"
+guard=0
+while [ -L "$self" ]; do
+  guard=$((guard + 1))
+  [ "$guard" -gt 40 ] && { echo "error: symlink loop resolving $0" >&2; exit 1; }
+  link=$(readlink "$self")
+  case "$link" in
+    /*) self="$link" ;;
+    *)  self="$(dirname "$self")/$link" ;;
+  esac
+done
+here="$(cd "$(dirname "$self")" && pwd -P)"
+AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
+
+# shellcheck source=../lib/common.sh
+. "$here/../lib/common.sh"
+
+usage() {
+  cat <<EOF
+${C_BOLD}agentic${C_RESET} - multi-provider CLI account manager
+
+${C_BOLD}USAGE${C_RESET}
+  agentic <verb> <provider> <name> [options]
+
+${C_BOLD}GLOBAL OPTIONS${C_RESET}
+  --help, -h     Show this help
+  --version, -V  Print the version
+
+Version $AGENTIC_VERSION
+EOF
+}
+
+[ $# -gt 0 ] || { usage; exit 1; }
+
+case "$1" in
+  help|-h|--help)   usage ;;
+  --version|-V)     print_version agentic ;;
+  *)
+    die "unknown command: $1 (try 'agentic --help')" ;;
+esac

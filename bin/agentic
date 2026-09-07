@@ -274,13 +274,13 @@ cmd_rm() {
   _crm_active=$(get_active "$_crm_provider")
   _crm_live=$(provider_live_auth)
   if [ "$_crm_active" = "$_crm_name" ]; then
+    warn "active account '$_crm_name'; live auth link will be backed up and removed"
     if [ -L "$_crm_live" ] && [ -e "$_crm_live" ] && [ ! -e "$_crm_live.bak" ]; then
       cp -p "$_crm_live" "$_crm_live.bak" || die "backup failed"
       harden_auth_file "$_crm_live.bak"
     fi
     [ -L "$_crm_live" ] && rm -f "$_crm_live"
     clear_active "$_crm_provider"
-    warn "removed active account '$_crm_name'; no account is active now"
   fi
 
   rm -rf "$_crm_dir"

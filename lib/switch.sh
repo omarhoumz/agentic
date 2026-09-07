@@ -39,6 +39,10 @@ adopt_live_auth() {
     warn "active $_ala_provider account '$_ala_active' is missing; live auth was not replaced"
     return 1
   }
+  if [ -f "$_ala_auth" ] && [ ! "$_ala_live" -nt "$_ala_auth" ]; then
+    info "live auth is not newer than '$_ala_active'; backup preserved it"
+    return 0
+  fi
 
   cp -p "$_ala_live" "$_ala_auth.tmp" || die "cannot update $_ala_auth"
   mv "$_ala_auth.tmp" "$_ala_auth" || die "cannot update $_ala_auth"

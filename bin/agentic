@@ -24,6 +24,8 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 . "$here/../lib/store.sh"
 # shellcheck source=../lib/provider.sh
 . "$here/../lib/provider.sh"
+# shellcheck source=../lib/switch.sh
+. "$here/../lib/switch.sh"
 
 usage() {
   cat <<EOF
@@ -70,6 +72,99 @@ cmd_which() {
   fi
 }
 
+cmd_login() {
+  _cl_provider="${1:-}"
+  _cl_name="${2:-}"
+  [ -n "$_cl_provider" ] && [ -n "$_cl_name" ] || die "usage: agentic login <provider> <name> [--force]"
+  shift 2
+
+  _cl_force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) _cl_force=1 ;;
+      *) die "unknown option for login: $1" ;;
+    esac
+    shift
+  done
+
+  validate_provider "$_cl_provider"
+  validate_name "$_cl_name"
+  load_provider "$_cl_provider"
+
+  _cl_dir=$(account_dir "$_cl_provider" "$_cl_name")
+  if [ -d "$_cl_dir" ] && [ "$_cl_force" -eq 0 ]; then
+    die "account '$_cl_name' already exists - pass --force to replace it"
+  fi
+
+  ensure_account_dir "$_cl_provider" "$_cl_name"
+  provider_login "$_cl_name" || die "login failed - '$_cl_name' was not changed"
+  [ -f "$(provider_auth_artifact "$_cl_name")" ] || die "login did not create an auth.json for '$_cl_name'"
+  activate_account "$_cl_provider" "$_cl_name"
+}
+
+cmd_use() {
+  _cu_provider="${1:-}"
+  _cu_name="${2:-}"
+  [ -n "$_cu_provider" ] && [ -n "$_cu_name" ] || die "usage: agentic use <provider> <name> [--force]"
+  shift 2
+
+  _cu_force=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --force) _cu_force=1 ;;
+      *) die "unknown option for use: $1" ;;
+    esac
+    shift
+  done
+
+  validate_provider "$_cu_provider"
+  validate_name "$_cu_name"
+  [ -d "$(account_dir "$_cu_provider" "$_cu_name")" ] || die "no such account: $_cu_name"
+  load_provider "$_cu_provider"
+  [ -f "$(provider_auth_artifact "$_cu_name")" ] || die "'$_cu_name' has no auth.json - relogin first"
+
+  _cu_live=$(provider_live_auth)
+  _cu_active=$(get_active "$_cu_provider")
+  if [ "$_cu_force" -eq 0 ] && [ -n "$_cu_active" ] && [ -f "$_cu_live" ] && [ ! -L "$_cu_live" ]; then
+    die "live auth is no longer linked to '$_cu_active' (a bare login may have replaced it)
+  repair it first, or pass --force to preserve it as a backup and switch"
+  fi
+
+  if [ "$_cu_force" -eq 0 ] && command -v provider_is_running >/dev/null 2>&1 && provider_is_running; then
+    die "$_cu_provider is currently running (pid $(provider_running_pids))
+  quit it first, or pass --force"
+  fi
+
+  activate_account "$_cu_provider" "$_cu_name"
+}
+
+cmd_relogin() {
+  [ $# -eq 2 ] || die "usage: agentic relogin <provider> <name>"
+  validate_provider "$1"
+  validate_name "$2"
+  [ -d "$(account_dir "$1" "$2")" ] || die "no such account: $2"
+  cmd_login "$1" "$2" --force
+}
+
+cmd_run() {
+  _cr_provider="${1:-}"
+  _cr_name="${2:-}"
+  [ -n "$_cr_provider" ] && [ -n "$_cr_name" ] || die "usage: agentic run <provider> <name> [--] <args...>"
+  shift 2
+  [ "${1:-}" = "--" ] && shift
+
+  validate_provider "$_cr_provider"
+  validate_name "$_cr_name"
+  [ -d "$(account_dir "$_cr_provider" "$_cr_name")" ] || die "no such account: $_cr_name"
+  load_provider "$_cr_provider"
+
+  while IFS= read -r _cr_assignment; do
+    [ -n "$_cr_assignment" ] && export "$_cr_assignment"
+  done < <(provider_run_env "$_cr_name")
+
+  exec "$(provider_cli_bin)" "$@"
+}
+
 [ $# -gt 0 ] || { usage; exit 1; }
 
 case "$1" in
@@ -77,6 +172,10 @@ case "$1" in
   --version|-V)     print_version agentic ;;
   list)             shift; cmd_list "$@" ;;
   which)            shift; cmd_which "$@" ;;
+  login)            shift; cmd_login "$@" ;;
+  relogin)          shift; cmd_relogin "$@" ;;
+  use)              shift; cmd_use "$@" ;;
+  run)              shift; cmd_run "$@" ;;
   *)
     die "unknown command: $1 (try 'agentic --help')" ;;
 esac

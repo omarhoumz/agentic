@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 #
-# Codex provider contract (stub — login/use/run wired in later tasks).
+# Codex provider contract.
 
 provider_live_home() {
   printf '%s\n' "${AGENTIC_CODEX_LIVE_HOME:-${CODEX_HOME:-$HOME/.codex}}"
@@ -27,9 +27,21 @@ provider_cli_bin() {
 }
 
 provider_login() {
-  :
+  _pl_home=$(provider_account_home "$1")
+  CODEX_HOME="$_pl_home" "$(provider_cli_bin)" login
 }
 
 provider_status() {
-  :
+  _ps_home=$(provider_account_home "$1")
+  CODEX_HOME="$_ps_home" "$(provider_cli_bin)" login status
+}
+
+provider_is_running() {
+  command -v pgrep >/dev/null 2>&1 || return 1
+  pgrep -x codex >/dev/null 2>&1
+}
+
+provider_running_pids() {
+  command -v pgrep >/dev/null 2>&1 || return 0
+  pgrep -x codex 2>/dev/null | tr '\n' ' '
 }

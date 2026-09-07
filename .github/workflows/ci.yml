@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint
+        run: >-
+          shellcheck -x -P bin:.:providers:lib
+          bin/agentic lib/*.sh providers/*.sh shell/agentic.sh install.sh
+          completions/agentic.bash
+
+  test:
+    name: bats (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install bats
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install bats-core
+          else
+            sudo apt-get update && sudo apt-get install -y bats
+          fi
+      - name: Run tests
+        run: bats test/
+
+  install-roundtrip:
+    name: install/uninstall (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install and uninstall in a scratch prefix
+        run: |
+          ./install.sh --prefix "$RUNNER_TEMP/bin"
+          test -L "$RUNNER_TEMP/bin/agentic"
+          "$RUNNER_TEMP/bin/agentic" --version
+          ./install.sh --prefix "$RUNNER_TEMP/bin" --uninstall
+          test ! -e "$RUNNER_TEMP/bin/agentic"

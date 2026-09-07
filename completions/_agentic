@@ -1,0 +1,82 @@
+#compdef agentic
+
+_agentic_accounts() {
+  local -a names
+  names=(${(f)"$(agentic list "$1" --names 2>/dev/null)"})
+  (( ${#names} )) && _describe -t accounts 'account' names
+}
+
+_agentic_providers() {
+  local -a providers
+  providers=('codex:Codex CLI' 'cursor:Cursor Agent CLI')
+  _describe -t providers 'provider' providers
+}
+
+_agentic() {
+  local verb provider
+  local -a verbs providers
+  verbs=(
+    'login:sign in and save an account'
+    'relogin:sign in again to an account'
+    'use:make an account active'
+    'run:run a CLI with an account'
+    'which:print the active account'
+    'list:list saved accounts'
+    'check:check account credentials'
+    'repair:repair replaced live auth'
+    'rm:delete an account'
+    'restore:restore backed-up live auth'
+    'migrate:copy codex-accounts data into agentic'
+    'shell-init:install shell wrappers'
+    'help:show help'
+    '--help:show help'
+    '--version:print the version'
+  )
+  providers=('codex:Codex CLI' 'cursor:Cursor Agent CLI')
+
+  if (( CURRENT == 2 )); then
+    _describe -t commands 'command' verbs
+    return
+  fi
+
+  verb=${words[2]}
+  case "$verb" in
+    login|relogin|use|run|check|rm)
+      if (( CURRENT == 3 )); then
+        _agentic_providers
+      elif (( CURRENT == 4 )); then
+        _agentic_accounts "${words[3]}"
+      else
+        case "$verb" in
+          login|use) _values 'option' '--force[replace existing credentials]' ;;
+          check) _values 'option' '--deep[ask the provider to verify credentials]' ;;
+          rm) _values 'option' '--yes[do not prompt]' ;;
+        esac
+      fi
+      ;;
+    which|restore)
+      (( CURRENT == 3 )) && _agentic_providers
+      ;;
+    list)
+      if (( CURRENT == 3 )); then
+        _agentic_providers
+      else
+        _values 'option' '--names[print bare account names]'
+      fi
+      ;;
+    repair)
+      if (( CURRENT == 3 )); then
+        _alternative 'providers:provider:_agentic_providers' \
+          'options:option:((--yes\:"do not prompt"))'
+      else
+        _values 'option' '--yes[do not prompt]'
+      fi
+      ;;
+    shell-init)
+      _values 'option' '--remove[remove shell wrappers]' '--print[print snippet path]' \
+        '--rc[rc file]:rc file:_files'
+      ;;
+  esac
+}
+
+_agentic "$@"

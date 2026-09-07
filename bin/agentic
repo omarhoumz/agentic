@@ -37,6 +37,20 @@ ${C_BOLD}USAGE${C_RESET}
   agentic <verb> <provider> <name> [options]
   agentic shell-init [--print|--remove] [--rc FILE]
 
+${C_BOLD}COMMANDS${C_RESET}
+  login    <provider> <name> [--force]       Sign in and save an account
+  relogin  <provider> <name>                 Sign in again to an account
+  use      <provider> <name> [--force]       Make an account active
+  run      <provider> <name> [--] <args...>  Run a CLI with an account
+  which    <provider>                        Print the active account
+  list     [<provider>] [--names]            List saved accounts
+  check    <provider> <name> [--deep]        Check account credentials
+  repair   [<provider>] [--yes]              Repair replaced live auth
+  rm       <provider> <name> [--yes]         Delete an account
+  restore  <provider>                        Restore backed-up live auth
+  migrate                                   Copy codex-accounts data into agentic
+  shell-init [--remove|--print] [--rc FILE] Install shell wrappers
+
 ${C_BOLD}GLOBAL OPTIONS${C_RESET}
   --help, -h     Show this help
   --version, -V  Print the version
@@ -60,8 +74,18 @@ cmd_list() {
     return 0
   fi
 
-  validate_provider "$1"
-  list_accounts "$1"
+  _cl_provider="$1"
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --names) ;;
+      *) die "unknown option for list: $1" ;;
+    esac
+    shift
+  done
+
+  validate_provider "$_cl_provider"
+  list_accounts "$_cl_provider"
 }
 
 cmd_which() {
@@ -314,6 +338,8 @@ cmd_run() {
   load_provider "$_cr_provider"
 
   while IFS= read -r _cr_assignment; do
+    # Export the KEY=value assignment emitted by the provider.
+    # shellcheck disable=SC2163
     [ -n "$_cr_assignment" ] && export "$_cr_assignment"
   done < <(provider_run_env "$_cr_name")
 
@@ -342,6 +368,7 @@ default_rcfile() {
 path_owner() {
   stat -f '%Su' "$1" 2>/dev/null && return 0
   stat -c '%U' "$1" 2>/dev/null && return 0
+  # shellcheck disable=SC2012
   ls -ld "$1" 2>/dev/null | awk '{print $3; exit}'
 }
 

@@ -35,6 +35,7 @@ ${C_BOLD}agentic${C_RESET} - multi-provider CLI account manager
 
 ${C_BOLD}USAGE${C_RESET}
   agentic <verb> <provider> <name> [options]
+  agentic shell-init [--print|--remove] [--rc FILE]
 
 ${C_BOLD}GLOBAL OPTIONS${C_RESET}
   --help, -h     Show this help
@@ -349,8 +350,18 @@ rc_has_integration() {
   grep -qF "$AGENTIC_RC_MARK_START" "$1"
 }
 
+# Where to write when the rc file is a symlink (~/.zshrc -> ~/dotfiles/zshrc).
+rc_write_target() {
+  if [ -L "$1" ]; then
+    resolve_path "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
 rc_add_integration() {
   _rai_rc="$1"
+  _rai_write=$(rc_write_target "$_rai_rc")
   _rai_snippet=$(shell_snippet_path)
 
   [ -f "$_rai_snippet" ] || die "cannot find the shell snippet at $_rai_snippet"
@@ -361,11 +372,11 @@ rc_add_integration() {
   fi
 
   if [ -e "$_rai_rc" ]; then
-    if [ ! -w "$_rai_rc" ]; then
+    if [ ! -w "$_rai_write" ]; then
       die "cannot write $_rai_rc - it is not writable by you
-  owned by '$(path_owner "$_rai_rc")', you are '$(id -un)'
+  owned by '$(path_owner "$_rai_write")', you are '$(id -un)'
   take ownership:
-    sudo chown $(id -un) $_rai_rc
+    sudo chown $(id -un) $_rai_write
 
   or use a different file:
     agentic shell-init --rc ~/.zprofile
@@ -402,21 +413,28 @@ rc_remove_integration() {
     return 0
   fi
 
-  [ -w "$_rri_rc" ] || die "cannot edit $_rri_rc - it is not writable by you
-  owned by '$(path_owner "$_rri_rc")', you are '$(id -un)'
-  take ownership with:  sudo chown $(id -un) $_rri_rc
+  _rri_write=$(rc_write_target "$_rri_rc")
+
+  [ -w "$_rri_write" ] || die "cannot edit $_rri_rc - it is not writable by you
+  owned by '$(path_owner "$_rri_write")', you are '$(id -un)'
+  take ownership with:  sudo chown $(id -un) $_rri_write
   or delete the block between the agentic shell-init markers by hand"
 
-  _rri_tmp="$_rri_rc.agentic.tmp"
+  _rri_tmp="${_rri_write}.agentic.tmp"
   awk -v s="$AGENTIC_RC_MARK_START" -v e="$AGENTIC_RC_MARK_END" '
-    $0 == s { skip = 1 }
+    $0 == s {
+      if (blanks > 0) { blanks-- }
+      skip = 1
+      next
+    }
     !skip {
       if ($0 == "") { blanks++ }
       else { while (blanks > 0) { print ""; blanks-- }; print }
     }
     $0 == e { skip = 0 }
+    END { while (blanks > 0) { print ""; blanks-- } }
   ' "$_rri_rc" > "$_rri_tmp" || die "cannot rewrite $_rri_rc"
-  mv "$_rri_tmp" "$_rri_rc" || die "cannot replace $_rri_rc"
+  mv "$_rri_tmp" "$_rri_write" || die "cannot replace $_rri_write"
 
   info "${C_GREEN}removed${C_RESET} shell integration from $_rri_rc"
 }

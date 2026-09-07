@@ -109,6 +109,35 @@ wrapped() {
   [[ "$output" == *"no shell integration"* ]]
 }
 
+@test "shell-init --remove preserves trailing blank lines" {
+  original='# my shell config
+export EDITOR=vim
+
+
+'
+  printf '%s' "$original" > "$RC"
+  "$AGENTIC" shell-init --rc "$RC"
+  "$AGENTIC" shell-init --rc "$RC" --remove
+  printf '%s' "$original" | cmp -s - "$RC"
+}
+
+@test "shell-init --remove edits a symlinked rc target without replacing the link" {
+  target="$BATS_TEST_TMPDIR/dotfiles/zshrc"
+  mkdir -p "$(dirname "$target")"
+  printf '# my shell config\nexport EDITOR=vim\n' > "$target"
+  ln -sf "$target" "$RC"
+
+  "$AGENTIC" shell-init --rc "$RC"
+  grep -q ">>> agentic shell-init >>>" "$target"
+
+  run "$AGENTIC" shell-init --rc "$RC" --remove
+  [ "$status" -eq 0 ]
+  [ -L "$RC" ]
+  [ "$(readlink "$RC")" = "$target" ]
+  ! grep -q "agentic shell-init" "$target"
+  grep -q "export EDITOR=vim" "$target"
+}
+
 @test "shell-init --print reports the snippet path" {
   run "$AGENTIC" shell-init --print
   [ "$status" -eq 0 ]

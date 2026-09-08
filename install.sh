@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
 # Install agentic as a symlink so updates to this checkout are immediately used.
+# Also links zsh/bash completions into the usual user or Homebrew dirs.
 
 set -eu
 
@@ -12,14 +13,15 @@ usage() {
   cat <<EOF
 Usage: ./install.sh [--prefix DIR] [--uninstall]
 
-Install agentic as \$HOME/.local/bin/agentic by default.
+Install agentic as \$HOME/.local/bin/agentic by default, and link shell
+completions when a writable completion directory is found.
 
 Options:
   --prefix DIR  Directory where agentic is linked
-  --uninstall   Remove this checkout's agentic link
+  --uninstall   Remove this checkout's agentic link and completion links
   -h, --help    Show this help
 
-Uninstalling removes only the link created from this checkout. It never
+Uninstalling removes only the links created from this checkout. It never
 touches ~/.agentic, so saved accounts remain intact.
 EOF
 }
@@ -44,6 +46,52 @@ resolve_path() {
   printf '%s\n' "$target"
 }
 
+# Prefer Homebrew's completion dirs when present (already on fpath for many
+# macOS zsh setups); otherwise use XDG-style user dirs.
+zsh_completion_dir() {
+  if command -v brew >/dev/null 2>&1; then
+    _zcd="$(brew --prefix 2>/dev/null)/share/zsh/site-functions"
+    if [ -d "$_zcd" ] && [ -w "$_zcd" ]; then
+      printf '%s\n' "$_zcd"
+      return 0
+    fi
+  fi
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/zsh/site-functions"
+}
+
+bash_completion_dir() {
+  if command -v brew >/dev/null 2>&1; then
+    _bcd="$(brew --prefix 2>/dev/null)/etc/bash_completion.d"
+    if [ -d "$_bcd" ] && [ -w "$_bcd" ]; then
+      printf '%s\n' "$_bcd"
+      return 0
+    fi
+  fi
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+}
+
+link_completion() {
+  _lc_src="$1"
+  _lc_dest="$2"
+  [ -f "$_lc_src" ] || return 0
+  mkdir -p "$(dirname "$_lc_dest")" || die "cannot create $(dirname "$_lc_dest")"
+  if [ -e "$_lc_dest" ] && [ ! -L "$_lc_dest" ]; then
+    printf 'warning: left %s alone (not a symlink)\n' "$_lc_dest" >&2
+    return 0
+  fi
+  ln -sfn "$_lc_src" "$_lc_dest" || die "cannot link $_lc_dest"
+  printf 'installed %s -> %s\n' "$_lc_dest" "$_lc_src"
+}
+
+unlink_completion() {
+  _uc_src="$1"
+  _uc_dest="$2"
+  if [ -L "$_uc_dest" ] && [ "$(resolve_path "$_uc_dest")" = "$_uc_src" ]; then
+    rm -f "$_uc_dest"
+    printf 'removed %s\n' "$_uc_dest"
+  fi
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --prefix) shift; [ $# -gt 0 ] || die "--prefix needs a directory"; PREFIX="$1" ;;
@@ -57,6 +105,10 @@ done
 
 target="$PREFIX/agentic"
 source="$repo/bin/agentic"
+zsh_src="$repo/completions/_agentic"
+bash_src="$repo/completions/agentic.bash"
+zsh_dest="$(zsh_completion_dir)/_agentic"
+bash_dest="$(bash_completion_dir)/agentic"
 
 case "$ACTION" in
   install)
@@ -78,6 +130,18 @@ case "$ACTION" in
       *":$PREFIX:"*) ;;
       *) printf 'warning: %s is not on your PATH\n' "$PREFIX" >&2 ;;
     esac
+
+    link_completion "$zsh_src" "$zsh_dest"
+    link_completion "$bash_src" "$bash_dest"
+
+    case "$zsh_dest" in
+      */.local/share/zsh/site-functions/_agentic)
+        printf 'note: add this to ~/.zshrc if completions do not load:\n\n'
+        printf '  fpath=(%s \$fpath)\n' "$(dirname "$zsh_dest")"
+        printf '  autoload -Uz compinit && compinit\n\n'
+        ;;
+    esac
+    printf 'open a new shell (or run: exec zsh) so completions refresh\n'
     ;;
   uninstall)
     if [ ! -L "$target" ]; then
@@ -88,5 +152,7 @@ case "$ACTION" in
     else
       printf 'warning: left %s alone (points outside this repository)\n' "$target" >&2
     fi
+    unlink_completion "$zsh_src" "$zsh_dest"
+    unlink_completion "$bash_src" "$bash_dest"
     ;;
 esac

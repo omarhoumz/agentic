@@ -244,7 +244,8 @@ repair_provider() {
     return 0
   fi
   if [ ! -d "$(account_dir "$_rp_provider" "$_rp_active")" ]; then
-    warn "$_rp_provider active account '$_rp_active' is missing; leaving live auth in place"
+    warn "$_rp_provider active account '$_rp_active' is missing; clearing marker and leaving live auth in place"
+    clear_active "$_rp_provider"
     return 0
   fi
 

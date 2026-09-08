@@ -31,6 +31,43 @@ load helper
   [ "$(cat "$AGENTIC_DIR/cursor/work/auth.json")" = '{"token":"new"}' ]
 }
 
+@test "repair clears stale active marker when account dir is missing" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex"
+  printf '{"token":"stranded"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf 'gone\n' > "$AGENTIC_DIR/codex/.current"
+
+  run "$AGENTIC" repair codex
+
+  [ "$status" -eq 0 ]
+  [ ! -f "$AGENTIC_DIR/codex/.current" ]
+  [ -f "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
+  [ ! -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
+  [ -z "$("$AGENTIC" which codex)" ]
+}
+
+@test "provider-less repair does not leave Codex config link on a Cursor account" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_CURSOR_LIVE_HOME"
+  mkdir -p "$AGENTIC_DIR/codex/work" "$AGENTIC_DIR/cursor/work"
+  printf 'key = "x"\n' > "$AGENTIC_CODEX_LIVE_HOME/config.toml"
+  printf '{"token":"codex"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+  touch -t 200001010000 "$AGENTIC_DIR/codex/work/auth.json"
+  printf '{"token":"new-codex"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/codex/.current"
+  printf '{"token":"cursor"}\n' > "$AGENTIC_DIR/cursor/work/auth.json"
+  touch -t 200001010000 "$AGENTIC_DIR/cursor/work/auth.json"
+  printf '{"token":"new-cursor"}\n' > "$AGENTIC_CURSOR_LIVE_HOME/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/cursor/.current"
+
+  run "$AGENTIC" repair
+
+  [ "$status" -eq 0 ]
+  [ ! -e "$AGENTIC_DIR/cursor/work/config.toml" ]
+  [ -L "$AGENTIC_DIR/codex/work/config.toml" ]
+}
+
 @test "use --force adopts a regular live credential into the former active account" {
   export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
   mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work" "$AGENTIC_DIR/codex/personal"

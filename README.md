@@ -106,9 +106,9 @@ agentic shell-init
 
 They prevent bare `codex login`, `codex logout`, `agent login`, and `agent
 logout` from overwriting a managed account. Use `agentic shell-init --remove`
-to remove the marked block later. While the wrappers are active, they also
-export `AGENT_CLI_CREDENTIAL_STORE=file` so bare `agent` follows the managed
-Cursor file credential store.
+to remove the marked block later. When a Cursor account store exists under
+`~/.agentic/cursor`, they also export `AGENT_CLI_CREDENTIAL_STORE=file` so
+bare `agent` follows the managed file credential store.
 
 ## Scope and status
 

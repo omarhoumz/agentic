@@ -209,6 +209,18 @@ export EDITOR=vim
   [ "$output" = "file" ]
 }
 
+@test "Codex-only store does not force Cursor file credential store" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+  export SNIPPET
+  mkdir -p "$AGENTIC_DIR/codex/personal"
+  unset AGENT_CLI_CREDENTIAL_STORE || true
+
+  run wrapped 'printf "%s\n" "${AGENT_CLI_CREDENTIAL_STORE-}"'
+
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
 @test "with no store the wrapper stays out of the way" {
   SNIPPET="$REPO_ROOT/shell/agentic.sh"
   export SNIPPET

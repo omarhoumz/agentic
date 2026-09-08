@@ -11,6 +11,8 @@ load_provider() {
   if [ "$_LOADED_PROVIDER" = "$1" ]; then
     return 0
   fi
+  # Drop optional Codex-only helpers so a later cursor load does not inherit them.
+  unset -f link_shared_config 2>/dev/null || true
   _lp_file="$AGENTIC_ROOT/providers/$1.sh"
   [ -f "$_lp_file" ] || die "provider script not found: $1"
   # shellcheck source=/dev/null

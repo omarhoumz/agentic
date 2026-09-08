@@ -43,7 +43,9 @@ load helper
   [ ! -f "$AGENTIC_DIR/codex/.current" ]
   [ -f "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
   [ ! -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
-  [ -z "$("$AGENTIC" which codex)" ]
+  run "$AGENTIC" which codex
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no account is active"* ]]
 }
 
 @test "provider-less repair does not leave Codex config link on a Cursor account" {

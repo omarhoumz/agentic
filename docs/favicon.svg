@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="codex-accounts">
+  <!--
+    A symlink, drawn: one path descends and turns into exactly one of two
+    targets. The filled square is the account being written through; the hollow
+    one is the account left alone.
+
+    Literal colours are correct here. The no-hardcoded-colour rule governs the
+    page stylesheet, where tokens make the theme swappable; a favicon is a
+    standalone asset with no token scope to inherit, so it carries its own two
+    schemes via a media query instead.
+  -->
+  <style>
+    :root { --ink: #14161a; --accent: #14489e; --paper: #f2f1ed; }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #e9ebee; --accent: #8fb6ff; --paper: #14161a; }
+    }
+    .bg     { fill: var(--paper); }
+    .link   { fill: none; stroke: var(--accent); stroke-width: 2.4;
+              stroke-linecap: square; }
+    .head   { fill: var(--accent); }
+    .target { fill: var(--accent); }
+    .other  { fill: none; stroke: var(--ink); stroke-width: 2; opacity: .45; }
+  </style>
+
+  <rect class="bg" width="32" height="32" rx="6"/>
+
+  <!-- the one path: down from the source, then left into the live target -->
+  <path class="link" d="M20 7 V15 H11"/>
+  <path class="head" d="M12 11.5 L7 15 L12 18.5 Z"/>
+
+  <!-- live target, filled: written through -->
+  <rect class="target" x="4" y="21" width="9" height="7" rx="1.5"/>
+  <!-- the other account, untouched -->
+  <rect class="other" x="18" y="21" width="9" height="7" rx="1.5"/>
+</svg>

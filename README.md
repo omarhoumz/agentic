@@ -4,6 +4,9 @@
 each account's credentials in `~/.agentic/<provider>/<name>` and switches the
 provider's live credentials to the selected account.
 
+**[omarhoumz.github.io/agentic](https://omarhoumz.github.io/agentic/)** —
+what it is and how to start, in one page. This file is the reference.
+
 See the [design specification](docs/superpowers/specs/2026-09-07-agentic-accounts-design.md)
 for the command model, storage layout, and safety guarantees.
 

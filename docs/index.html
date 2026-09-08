@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agentic — Codex and Cursor Agent accounts on one machine</title>
+<meta name="description" content="agentic manages separate CLI accounts for Codex and Cursor Agent. Live auth.json becomes a symlink into ~/.agentic/<provider>/<name>, so a token refresh writes through instead of going stale.">
+
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="https://omarhoumz.github.io/agentic/">
+
+<!-- Social card. og:image must be absolute because crawlers require it; it is
+     metadata rather than something this page fetches, so the page still renders
+     with the network off. -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://omarhoumz.github.io/agentic/">
+<meta property="og:title" content="agentic">
+<meta property="og:description" content="Codex and Cursor Agent accounts on one machine, without them invalidating each other.">
+<meta property="og:image" content="https://omarhoumz.github.io/agentic/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://omarhoumz.github.io/agentic/og.png">
+
+<style>
+  /* ---- tokens: the only place a literal colour appears ------------------ */
+  :root {
+    color-scheme: light;
+    --bg:          #f2f1ed;
+    --panel:       #fbfbf9;
+    --panel-2:     #eceae4;
+    --ink:         #14161a;
+    --ink-2:       #464b52;
+    --ink-3:       #62686f;
+    --rule:        #d6d3cb;
+    --rule-strong: #a5a29a;
+    --grid:        #ded9cf;
+    --accent:      #14489e;
+    --accent-wash: #e2eafb;
+    --warn:        #a3301c;
+    --warn-wash:   #f7e4de;
+    --term-bg:     #14161a;
+    --term-ink:    #e9ebee;
+    --term-dim:    #9aa1a9;
+    --term-accent: #8fb6ff;
+    --focus:       #14489e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg:          #0f1114;
+      --panel:       #171a1e;
+      --panel-2:     #1e2226;
+      --ink:         #edeff2;
+      --ink-2:       #b0b7bf;
+      --ink-3:       #838b94;
+      --rule:        #2b3037;
+      --rule-strong: #454c55;
+      --grid:        #262c32;
+      --accent:      #7fabff;
+      --accent-wash: #16233c;
+      --warn:        #ff9377;
+      --warn-wash:   #33201b;
+      --term-bg:     #0a0c0e;
+      --term-ink:    #e0e4e9;
+      --term-dim:    #969da5;
+      --term-accent: #8fb6ff;
+      --focus:       #7fabff;
+    }
+  }
+
+  /* ---- base ------------------------------------------------------------- */
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono, code, pre, kbd {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 0 clamp(1rem, 4vw, 2.5rem); }
+
+  /* ---- masthead --------------------------------------------------------- */
+  .masthead { border-bottom: 1px solid var(--rule-strong); }
+  .masthead-in {
+    display: flex; flex-wrap: wrap; gap: .4rem 1.5rem;
+    align-items: baseline; justify-content: space-between;
+    padding-top: 1.6rem; padding-bottom: 1.1rem;
+  }
+  .wordmark { font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; margin: 0; }
+  .wordmark span { color: var(--ink-3); font-weight: 400; }
+  .versions { color: var(--ink-3); font-size: .8rem; margin: 0; }
+
+  /* ---- section scaffolding --------------------------------------------- */
+  section { border-bottom: 1px solid var(--rule); padding: clamp(2.2rem, 6vw, 3.4rem) 0; }
+  section:last-of-type { border-bottom: 0; }
+  .eyebrow {
+    display: flex; align-items: baseline; gap: .6rem;
+    font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 .9rem;
+  }
+  .eyebrow b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  h1, h2, h3 { letter-spacing: -0.015em; line-height: 1.2; }
+  h1 { font-size: clamp(1.55rem, 5vw, 2.4rem); margin: 0 0 1rem; max-width: 30ch; font-weight: 600; }
+  h2 { font-size: clamp(1.22rem, 3.4vw, 1.55rem); margin: 0 0 .8rem; font-weight: 600; }
+  h3 { font-size: 1rem; margin: 2rem 0 .5rem; font-weight: 600; }
+  p { margin: 0 0 1rem; max-width: 68ch; color: var(--ink-2); }
+  p.lead { color: var(--ink); font-size: clamp(1rem, 2.3vw, 1.1rem); }
+  strong { color: var(--ink); font-weight: 600; }
+  p code, li code, figcaption code, h3 code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .88em; color: var(--ink); background: var(--panel-2);
+    padding: .1em .34em; border-radius: 2px; overflow-wrap: break-word;
+  }
+
+  /* ---- figures ---------------------------------------------------------- */
+  figure { margin: 1.6rem 0 0; background: var(--panel); border: 1px solid var(--rule); }
+  .figbody { padding: clamp(.9rem, 3vw, 1.5rem); }
+  figure svg { display: block; width: 100%; height: auto; }
+  .fig-wide svg { max-width: 620px; margin: 0 auto; }
+  figcaption {
+    border-top: 1px solid var(--rule);
+    padding: .7rem clamp(.9rem, 3vw, 1.5rem);
+    font-size: .8rem; line-height: 1.5; color: var(--ink-2);
+  }
+  figcaption b { color: var(--ink); font-weight: 600; }
+
+  /* the drawing language: shapes, wires, label ranks */
+  .box       { fill: var(--panel); stroke: var(--rule-strong); stroke-width: 1; }
+  .box-bad   { fill: var(--warn-wash); stroke: var(--warn); stroke-width: 1.5; }
+  .t     { fill: var(--ink);   font-size: 13px; }
+  .t-sm  { fill: var(--ink-2); font-size: 11.5px; }
+  .t-mi  { fill: var(--ink-3); font-size: 10px; letter-spacing: .12em; }
+  .t-on     { fill: var(--accent); font-size: 11.5px; }
+  .t-on-mi  { fill: var(--accent); font-size: 10px; letter-spacing: .12em; }
+  .t-bad    { fill: var(--warn);   font-size: 11.5px; }
+  .t-bad-mi { fill: var(--warn);   font-size: 10px; letter-spacing: .12em; }
+  .wire      { stroke: var(--rule-strong); stroke-width: 1.25; fill: none; }
+  .wire-on   { stroke: var(--accent); stroke-width: 2; fill: none; }
+  .wire-off  { stroke: var(--rule); stroke-width: 1.25; fill: none; stroke-dasharray: 3 4; }
+  .wire-bad  { stroke: var(--warn); stroke-width: 2; fill: none; }
+  .link-dash { stroke-dasharray: 7 5; }
+  .rule-thin { stroke: var(--grid); stroke-width: 1; }
+
+  /* label sizes are tuned per figure so the rendered size lands ~11-17px  */
+  @media (max-width: 46rem) {
+    .fig-wide .t { font-size: 18px; }
+    .fig-wide .t-sm, .fig-wide .t-on, .fig-wide .t-bad { font-size: 16px; }
+    .fig-wide .t-mi, .fig-wide .t-on-mi, .fig-wide .t-bad-mi { font-size: 13.5px; }
+  }
+
+  /* ---- interactive figure ----------------------------------------------- */
+  .switcher {
+    display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+    padding: 0 clamp(.9rem, 3vw, 1.5rem) clamp(.9rem, 3vw, 1.3rem);
+  }
+  .switcher .label {
+    font-size: .68rem; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); margin-right: .2rem;
+  }
+  .switcher button {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .84rem;
+    color: var(--ink-2); background: var(--panel-2);
+    border: 1px solid var(--rule-strong); border-radius: 2px;
+    padding: .28rem .7rem; cursor: pointer;
+    transition: background 120ms linear, color 120ms linear, border-color 120ms linear;
+  }
+  .switcher button[aria-pressed="true"] { color: var(--accent); background: var(--accent-wash); border-color: var(--accent); }
+  #fig-symlink .ptr, #fig-symlink .acct-tag { opacity: 0; transition: opacity 160ms linear; }
+  #fig-symlink .acct rect { transition: fill 160ms linear, stroke 160ms linear; }
+  #fig-symlink[data-active="personal"] .ptr[data-target="personal"],
+  #fig-symlink[data-active="work"]     .ptr[data-target="work"] { opacity: 1; }
+  #fig-symlink[data-active="personal"] .acct[data-acct="personal"] .acct-tag,
+  #fig-symlink[data-active="work"]     .acct[data-acct="work"] .acct-tag { opacity: 1; }
+  #fig-symlink[data-active="personal"] .acct[data-acct="personal"] rect,
+  #fig-symlink[data-active="work"]     .acct[data-acct="work"] rect {
+    fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5;
+  }
+
+  /* ---- demo: a runnable command plus what it printed -------------------- */
+  .demo { margin: 1.2rem 0 0; }
+  .demo .run { border-bottom: 0; }
+  .demo pre {
+    margin: 0; padding: .8rem .85rem; overflow-x: auto;
+    border: 1px solid var(--rule-strong);
+    background: var(--term-bg); color: var(--term-ink);
+    font-size: .8rem; line-height: 1.6;
+  }
+  .demo pre .on  { color: var(--term-accent); }
+
+  .after-steps { margin-top: 2.4rem; }
+
+  /* ---- steps ------------------------------------------------------------ */
+  ol.steps { list-style: none; counter-reset: s; margin: 1.2rem 0 0; padding: 0; }
+  ol.steps > li {
+    counter-increment: s; position: relative;
+    padding: .85rem 0 .85rem 2.2rem; border-top: 1px solid var(--rule);
+  }
+  ol.steps > li:last-child { border-bottom: 1px solid var(--rule); }
+  ol.steps > li::before {
+    content: counter(s); position: absolute; left: 0; top: .95rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .74rem; color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  ol.steps .note { margin: .5rem 0 0; font-size: .86rem; color: var(--ink-2); max-width: 62ch; }
+
+  /* Screen-reader-only, for the copy confirmation. Not `display:none`, which
+     would stop it being announced. */
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+
+  /* ---- run: the ONE style for a command you are meant to type ------------
+     Every runnable command uses this, so "boxed with a prompt and a copy button"
+     reliably means "type this". Where a command's output matters, .demo wraps this
+     with the output pane beneath, keeping one style for the command itself. */
+  .run {
+    display: flex; align-items: stretch; gap: 0;
+    border: 1px solid var(--rule-strong); background: var(--panel);
+    margin: 0;
+  }
+  .install .run { margin-top: 1rem; }
+  .run-cmd {
+    /* max-width:none defeats the global `p { max-width: 68ch }`, which otherwise
+       caps this element and leaves the copy button stranded mid-row with dead
+       space after it on a wide screen. */
+    flex: 1 1 auto; min-width: 0; max-width: none;
+    overflow-x: auto; white-space: pre;
+    padding: .7rem .85rem; margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .9rem; color: var(--ink); line-height: 1.5;
+  }
+  .run-cmd .prompt {
+    color: var(--ink-3);
+    /* Excluded from selection, so a drag-select pastes a command that runs. */
+    -webkit-user-select: none; user-select: none;
+  }
+
+  .run-cmd .arg { color: var(--accent); }
+  .run-copy {
+    flex: 0 0 auto; align-self: stretch;
+    /* Its own label is not part of the command. Selecting across the block
+       would otherwise paste "COPY" into the shell along with the command. */
+    -webkit-user-select: none; user-select: none;
+    border: 0; border-left: 1px solid var(--rule); background: var(--panel-2);
+    color: var(--ink-3); cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .7rem; letter-spacing: .06em; text-transform: uppercase;
+    padding: 0 .8rem;
+  }
+  .run-copy:hover { color: var(--ink); background: var(--accent-wash); }
+  .run-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .run-copy[data-copied="true"] { color: var(--accent); }
+
+  /* ---- footer ----------------------------------------------------------- */
+  footer { border-top: 1px solid var(--rule-strong); padding: 1.8rem 0 3rem; }
+  .facts {
+    list-style: none; margin: 0 0 1rem; padding: 0;
+    display: flex; flex-wrap: wrap; gap: .35rem 1.1rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem; color: var(--ink-3);
+  }
+  .flinks { display: flex; flex-wrap: wrap; gap: 1.2rem; font-size: .86rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap masthead-in">
+    <p class="wordmark mono">agentic <span>— multi-account manager for Codex and Cursor Agent CLI</span></p>
+    <p class="versions mono">0.1.0</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- 01 what it is --------------------------------------------------------->
+  <section aria-labelledby="what">
+    <p class="eyebrow"><b>01</b> What it is</p>
+    <h1 id="what">Codex and Cursor Agent accounts on one machine, without them invalidating each other.</h1>
+    <p class="lead">Each CLI assumes one account. <code>agentic</code> gives each account its own directory under
+      <code>~/.agentic/&lt;provider&gt;/</code> and makes the live <code>auth.json</code> a symlink into the active one.</p>
+
+    <p>Coming from <code>codex-accounts</code>? <code>agentic migrate</code> copies
+      <code>~/.codex-accounts</code> into <code>~/.agentic/codex</code>.</p>
+
+    <figure id="fig-symlink" class="fig-wide" data-active="personal">
+      <div class="figbody">
+        <svg viewBox="0 0 460 384" role="img" aria-labelledby="f1t f1d">
+          <title id="f1t">Live auth.json is a symlink into one account's directory</title>
+          <desc id="f1d">The CLI reads and refreshes the live auth.json. That path is a symlink resolving
+            into ~/.agentic/codex/personal/auth.json, so the refreshed token is written into the personal
+            account's own file. The work account's file is left untouched. Switching accounts re-points the
+            symlink rather than copying anything.</desc>
+
+          <!-- the CLI -->
+          <rect class="box" x="130" y="8" width="200" height="56" rx="2"/>
+          <text class="t mono" x="230" y="34" text-anchor="middle">codex / agent</text>
+          <text class="t-mi mono" x="230" y="53" text-anchor="middle">ANY TERMINAL</text>
+
+          <line class="wire" x1="230" y1="64" x2="230" y2="96" marker-end="url(#h-ink)"/>
+          <text class="t-sm mono" x="242" y="86">reads · refreshes</text>
+
+          <!-- the symlink -->
+          <rect class="box" x="130" y="100" width="200" height="68" rx="2"/>
+          <text class="t mono" x="230" y="130" text-anchor="middle">~/.codex/auth.json</text>
+          <text class="t-on-mi mono" x="230" y="152" text-anchor="middle">SYMLINK</text>
+
+          <!-- both candidate targets, one resolved -->
+          <path class="wire-off" d="M230 168 C 230 206 118 206 118 246"/>
+          <path class="wire-off" d="M230 168 C 230 206 342 206 342 246"/>
+          <g class="ptr" data-target="personal">
+            <path class="wire-on link-dash" d="M230 168 C 230 206 118 206 118 244" marker-end="url(#h-on)"/>
+            <text class="t-on mono" x="108" y="200" text-anchor="end">points to</text>
+          </g>
+          <g class="ptr" data-target="work">
+            <path class="wire-on link-dash" d="M230 168 C 230 206 342 206 342 244" marker-end="url(#h-on)"/>
+            <text class="t-on mono" x="356" y="200">points to</text>
+          </g>
+
+          <!-- the account files -->
+          <g class="acct" data-acct="personal">
+            <rect class="box" x="18" y="250" width="200" height="76" rx="2"/>
+            <text class="t mono" x="118" y="280" text-anchor="middle">~/.agentic/codex/</text>
+            <text class="t-sm mono" x="118" y="299" text-anchor="middle">personal/auth.json</text>
+            <text class="t-on-mi mono acct-tag" x="118" y="318" text-anchor="middle">WRITTEN THROUGH</text>
+          </g>
+          <g class="acct" data-acct="work">
+            <rect class="box" x="242" y="250" width="200" height="76" rx="2"/>
+            <text class="t mono" x="342" y="280" text-anchor="middle">~/.agentic/codex/</text>
+            <text class="t-sm mono" x="342" y="299" text-anchor="middle">work/auth.json</text>
+            <text class="t-on-mi mono acct-tag" x="342" y="318" text-anchor="middle">WRITTEN THROUGH</text>
+          </g>
+
+          <line class="rule-thin" x1="18" y1="350" x2="442" y2="350"/>
+          <text class="t-mi mono" x="18" y="370">ONE FILE OF RECORD · NEVER A COPY</text>
+
+          <defs>
+            <marker id="h-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--rule-strong)"/>
+            </marker>
+            <marker id="h-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <div class="switcher">
+        <span class="label">Active account</span>
+        <button type="button" data-set="personal" aria-pressed="true" aria-describedby="f1cap">personal</button>
+        <button type="button" data-set="work" aria-pressed="false" aria-describedby="f1cap">work</button>
+      </div>
+      <figcaption id="f1cap">
+        <b>Figure 1 —</b> one path resolves into one account file.
+        <span id="f1live">Active: <code>personal</code>.</span>
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- 02 install ------------------------------------------------------------>
+  <section aria-labelledby="install">
+    <p class="eyebrow"><b>02</b> Install</p>
+    <h2 id="install">Homebrew</h2>
+    <div class="install">
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>brew install omarhoumz/tap/agentic</p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+    </div>
+    <div class="demo">
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic --version</p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+      <pre>agentic 0.1.0</pre>
+    </div>
+
+    <p>Same CLI for Cursor Agent accounts — use provider <code>cursor</code>
+      (always with <code>AGENT_CLI_CREDENTIAL_STORE=file</code>, which
+      <code>agentic login</code> / shell-init set for you):</p>
+    <div class="install">
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic login cursor <span class="arg">personal</span></p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 quickstart --------------------------------------------------------->
+  <section aria-labelledby="quickstart">
+    <p class="eyebrow"><b>03</b> Quickstart</p>
+    <h2 id="quickstart">Four commands, in this order</h2>
+    <ol class="steps">
+      <li>
+        <div class="run">
+          <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic login codex <span class="arg">personal</span></p>
+          <button class="run-copy" type="button">Copy</button>
+        </div>
+      </li>
+      <li>
+        <div class="run">
+          <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic login codex <span class="arg">work</span></p>
+          <button class="run-copy" type="button">Copy</button>
+        </div>
+        <p class="note">Sign out of ChatGPT in the browser first, or this re-authorises the same account.</p>
+      </li>
+      <li>
+        <div class="run">
+          <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic use codex <span class="arg">personal</span></p>
+          <button class="run-copy" type="button">Copy</button>
+        </div>
+      </li>
+      <li>
+        <div class="run">
+          <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic shell-init</p>
+          <button class="run-copy" type="button">Copy</button>
+        </div>
+        <p class="note">Optional, recommended. Adds a shell function that stops a bare
+          <code>codex login</code> from overwriting whichever account is active —
+          <a href="https://github.com/omarhoumz/agentic#readme">how
+          that happens</a>. After it, the login is redirected:</p>
+        <div class="demo">
+          <div class="run">
+            <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>codex login</p>
+            <button class="run-copy" type="button">Copy</button>
+          </div>
+          <pre>codex login is managed by agentic. Try: <span class="on">agentic login codex &lt;name&gt;</span></pre>
+        </div>
+      </li>
+    </ol>
+
+    <h3 class="after-steps">Then check what you have</h3>
+    <div class="demo">
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic list</p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+      <pre>codex:
+  personal
+<span class="on">*</span> work
+
+cursor:
+  personal</pre>
+    </div>
+  </section>
+
+  <!-- 04 why it exists ------------------------------------------------------>
+  <section aria-labelledby="why">
+    <p class="eyebrow"><b>04</b> Why it exists</p>
+    <h2 id="why">Two accounts can break at once, silently</h2>
+    <p>Every login rotates the account's refresh token and retires the previous one. A copied credential goes
+      stale.</p>
+    <p>A bare <code>codex login</code> writes <strong>through</strong> the active link: one command puts the
+      wrong identity under one name and retires the token stored under the other.</p>
+
+    <figure class="fig-wide">
+      <div class="figbody">
+        <svg viewBox="0 0 460 400" role="img" aria-labelledby="f4t f4d">
+          <title id="f4t">A bare codex login breaks two accounts at once</title>
+          <desc id="f4d">A bare codex login, signed in as personal while work is the active account, does two
+            things. It writes through the ~/.codex/auth.json symlink, overwriting work's auth.json with
+            personal's credential. And it rotates personal's refresh token, retiring the token still stored in
+            personal's own file. Both account files are now wrong, and both surface later as an HTTP 401
+            token_invalidated.</desc>
+
+          <rect class="box-bad" x="130" y="8" width="200" height="56" rx="2"/>
+          <text class="t mono" x="230" y="34" text-anchor="middle">codex login</text>
+          <text class="t-bad-mi mono" x="230" y="53" text-anchor="middle">AS PERSONAL</text>
+
+          <!-- one command, two consequences -->
+          <path class="wire-bad" d="M230 64 C 230 88 118 84 118 106" marker-end="url(#h-bad)"/>
+          <path class="wire-bad" d="M230 64 C 230 88 342 84 342 106" marker-end="url(#h-bad)"/>
+          <text class="t-bad mono" x="100" y="92" text-anchor="end">writes</text>
+          <text class="t-bad mono" x="360" y="92">rotates</text>
+
+          <rect class="box" x="18" y="110" width="200" height="68" rx="2"/>
+          <text class="t mono" x="118" y="140" text-anchor="middle">~/.codex/auth.json</text>
+          <text class="t-mi mono" x="118" y="162" text-anchor="middle">SYMLINK → WORK</text>
+
+          <rect class="box" x="242" y="110" width="200" height="68" rx="2"/>
+          <text class="t mono" x="342" y="140" text-anchor="middle">refresh token</text>
+          <text class="t-mi mono" x="342" y="162" text-anchor="middle">PREVIOUS RETIRED</text>
+
+          <line class="wire-bad" x1="118" y1="178" x2="118" y2="210" marker-end="url(#h-bad)"/>
+          <text class="t-bad mono" x="128" y="200">overwrites</text>
+          <line class="wire-bad" x1="342" y1="178" x2="342" y2="210" marker-end="url(#h-bad)"/>
+          <text class="t-bad mono" x="352" y="200">strands</text>
+
+          <rect class="box-bad" x="18" y="212" width="200" height="88" rx="2"/>
+          <text class="t mono" x="118" y="242" text-anchor="middle">~/.agentic/codex/</text>
+          <text class="t-sm mono" x="118" y="261" text-anchor="middle">work/auth.json</text>
+          <text class="t-bad mono" x="118" y="286" text-anchor="middle">holds personal's id</text>
+
+          <rect class="box-bad" x="242" y="212" width="200" height="88" rx="2"/>
+          <text class="t mono" x="342" y="242" text-anchor="middle">~/.agentic/codex/</text>
+          <text class="t-sm mono" x="342" y="261" text-anchor="middle">personal/auth.json</text>
+          <text class="t-bad mono" x="342" y="286" text-anchor="middle">token now invalid</text>
+
+          <text class="t-bad-mi mono" x="118" y="320" text-anchor="middle">BREAK 1</text>
+          <text class="t-bad-mi mono" x="342" y="320" text-anchor="middle">BREAK 2</text>
+
+          <line class="rule-thin" x1="18" y1="344" x2="442" y2="344"/>
+          <text class="t-mi mono" x="18" y="364">BOTH FILES ARE NOW WRONG</text>
+          <text class="t-mi mono" x="18" y="382">SURFACES AS HTTP 401 token_invalidated</text>
+
+          <defs>
+            <marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--warn)"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+      <figcaption><b>Figure 2 —</b> one command, two broken files. Nothing is reported at the
+        time.</figcaption>
+    </figure>
+
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <ul class="facts">
+      <li>MIT</li>
+    </ul>
+    <p class="flinks">
+      <a href="https://github.com/omarhoumz/agentic">GitHub</a>
+      <a href="https://github.com/omarhoumz/agentic#readme">README</a>
+    </p>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var fig = document.getElementById('fig-symlink');
+    if (!fig) return;
+    var live = document.getElementById('f1live');
+    var buttons = fig.querySelectorAll('.switcher button');
+
+    function apply(name) {
+      fig.setAttribute('data-active', name);
+      Array.prototype.forEach.call(buttons, function (b) {
+        b.setAttribute('aria-pressed', b.getAttribute('data-set') === name ? 'true' : 'false');
+      });
+      if (live) live.innerHTML = 'Active: <code>' + name + '</code>.';
+    }
+
+    Array.prototype.forEach.call(buttons, function (b) {
+      b.addEventListener('click', function () { apply(b.getAttribute('data-set')); });
+    });
+  })();
+
+  /* Copy buttons on runnable commands.
+
+     The text copied is read from the command element itself rather than a data
+     attribute, so it cannot drift from what is displayed. The `$` prompt is
+     aria-hidden and excluded, since nobody wants it pasted into their shell. */
+  (function () {
+    var blocks = document.querySelectorAll('.run');
+    if (!blocks.length) return;
+
+    function commandText(block) {
+      var cmd = block.querySelector('.run-cmd').cloneNode(true);
+      var prompt = cmd.querySelector('.prompt');
+      if (prompt) prompt.parentNode.removeChild(prompt);
+      return cmd.textContent.trim();
+    }
+
+    function copy(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      }
+      // Fallback for a non-secure context, e.g. opening the file directly.
+      return new Promise(function (resolve, reject) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+        ok ? resolve() : reject();
+      });
+    }
+
+    Array.prototype.forEach.call(blocks, function (block) {
+      var btn = block.querySelector('.run-copy');
+      if (!btn) return;
+
+      var label = commandText(block);
+      btn.setAttribute('aria-label', 'Copy command: ' + label);
+      // Announce the result without moving focus or shifting layout.
+      var status = document.createElement('span');
+      status.className = 'visually-hidden';
+      status.setAttribute('role', 'status');
+      block.appendChild(status);
+
+      var revert;
+      btn.addEventListener('click', function () {
+        copy(commandText(block)).then(function () {
+          btn.textContent = 'Copied';
+          btn.setAttribute('data-copied', 'true');
+          status.textContent = 'Copied ' + label;
+        }, function () {
+          btn.textContent = 'Press ⌘C';
+          status.textContent = 'Copying failed. Select the command and copy it.';
+        });
+        clearTimeout(revert);
+        revert = setTimeout(function () {
+          btn.textContent = 'Copy';
+          btn.removeAttribute('data-copied');
+          status.textContent = '';
+        }, 1600);
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

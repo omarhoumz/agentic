@@ -19,9 +19,9 @@ codex login status   # or equivalent
 
 ## Step 2: Cursor account
 
-- [ ] Set the file credential store before login: Cursor creates `auth.json`
-  only with `AGENT_CLI_CREDENTIAL_STORE=file`; Keychain-default installs may
-  not have that file.
+- [ ] Set the file credential store before login (or rely on `agentic login`,
+  which sets it). The Agent CLI writes `~/.cursor/auth.json`; agentic then
+  copies it into the account home.
 - [ ] Log in, run one-off via `run`, switch active account, confirm shim
 
 ```bash
@@ -31,6 +31,15 @@ agentic run cursor personal -- whoami
 agentic use cursor personal
 # shell-init must be active (or export the variable above) for bare agent
 agent whoami
+```
+
+If a prior login failed with "did not create an auth.json" but browser login
+succeeded, recover with:
+
+```bash
+cp ~/.cursor/auth.json ~/.agentic/cursor/personal/auth.json
+chmod 600 ~/.agentic/cursor/personal/auth.json
+agentic use cursor personal --force
 ```
 
 ## Step 3: Shell-init

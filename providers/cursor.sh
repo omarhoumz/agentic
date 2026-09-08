@@ -1,6 +1,11 @@
 # shellcheck shell=bash
 #
 # Cursor Agent CLI provider contract.
+#
+# The Agent CLI file credential store always writes ~/.cursor/auth.json
+# (homedir + ".cursor/auth.json"). CURSOR_CONFIG_DIR only relocates
+# cli-config.json and friends — not the auth file. Login therefore harvests
+# live auth into the account home; use/activate symlink the live path.
 
 provider_live_home() {
   printf '%s\n' "${AGENTIC_CURSOR_LIVE_HOME:-$HOME/.cursor}"
@@ -30,10 +35,23 @@ provider_cli_bin() {
 
 provider_login() {
   _pl_home=$(provider_account_home "$1")
-  CURSOR_CONFIG_DIR="$_pl_home" AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login
+  _pl_live=$(provider_live_auth)
+  _pl_auth=$(provider_auth_artifact "$1")
+
+  # Avoid write-through into a previously linked account.
+  if [ -L "$_pl_live" ]; then
+    rm -f "$_pl_live" || return 1
+  fi
+
+  CURSOR_CONFIG_DIR="$_pl_home" AGENT_CLI_CREDENTIAL_STORE=file \
+    "$(provider_cli_bin)" login || return $?
+
+  [ -f "$_pl_live" ] && [ ! -L "$_pl_live" ] || return 1
+  mkdir -p "$_pl_home" || return 1
+  cp -p "$_pl_live" "$_pl_auth" || return 1
+  chmod 600 "$_pl_auth" 2>/dev/null || true
 }
 
 provider_status() {
-  _ps_home=$(provider_account_home "$1")
-  CURSOR_CONFIG_DIR="$_ps_home" AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login status
+  AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login status
 }

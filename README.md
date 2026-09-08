@@ -66,11 +66,14 @@ agentic list cursor
 
 `agentic run` isolates a single CLI invocation to the requested account.
 `agentic use` changes the account used by a normal `codex` or `agent` command.
-Cursor management requires `AGENT_CLI_CREDENTIAL_STORE=file`: `auth.json` is
-created only after logging in with that setting. `agentic login` and `run` set
-it automatically; for `agentic use cursor …`, install shell-init (or export
-the variable manually) before using bare `agent`. Cursor `run` uses a separate
-config directory, so it does not merge the normal Cursor configuration.
+Cursor management requires `AGENT_CLI_CREDENTIAL_STORE=file`. The Agent CLI
+always writes credentials to `~/.cursor/auth.json` (it ignores
+`CURSOR_CONFIG_DIR` for the auth file); `agentic login` copies that file into
+the account home and then symlinks the live path. `agentic login` and `run`
+set the file-store variable automatically; for `agentic use cursor …`, install
+shell-init (or export the variable manually) before using bare `agent`.
+Cursor `run` uses a separate config directory, so it does not merge the
+normal Cursor configuration.
 
 `agentic check` uses either `jq` or `python3` to validate credential JSON.
 

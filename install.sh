@@ -137,7 +137,9 @@ case "$ACTION" in
     case "$zsh_dest" in
       */.local/share/zsh/site-functions/_agentic)
         printf 'note: add this to ~/.zshrc if completions do not load:\n\n'
-        printf '  fpath=(%s \$fpath)\n' "$(dirname "$zsh_dest")"
+        # $fpath must stay literal — a line for the user to copy, not expand now.
+        # shellcheck disable=SC2016
+        printf '  fpath=(%s $fpath)\n' "$(dirname "$zsh_dest")"
         printf '  autoload -Uz compinit && compinit\n\n'
         ;;
     esac

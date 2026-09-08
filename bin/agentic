@@ -111,7 +111,9 @@ cmd_which() {
 cmd_login() {
   _cl_provider="${1:-}"
   _cl_name="${2:-}"
-  [ -n "$_cl_provider" ] && [ -n "$_cl_name" ] || die "usage: agentic login <provider> <name> [--force]"
+  if [ -z "$_cl_provider" ] || [ -z "$_cl_name" ]; then
+    die "usage: agentic login <provider> <name> [--force]"
+  fi
   shift 2
 
   _cl_force=0
@@ -141,7 +143,9 @@ cmd_login() {
 cmd_use() {
   _cu_provider="${1:-}"
   _cu_name="${2:-}"
-  [ -n "$_cu_provider" ] && [ -n "$_cu_name" ] || die "usage: agentic use <provider> <name> [--force]"
+  if [ -z "$_cu_provider" ] || [ -z "$_cu_name" ]; then
+    die "usage: agentic use <provider> <name> [--force]"
+  fi
   shift 2
 
   _cu_force=0
@@ -197,7 +201,9 @@ auth_is_parseable() {
 cmd_check() {
   _cc_provider="${1:-}"
   _cc_name="${2:-}"
-  [ -n "$_cc_provider" ] && [ -n "$_cc_name" ] || die "usage: agentic check <provider> <name> [--deep]"
+  if [ -z "$_cc_provider" ] || [ -z "$_cc_name" ]; then
+    die "usage: agentic check <provider> <name> [--deep]"
+  fi
   shift 2
 
   _cc_deep=0
@@ -278,7 +284,9 @@ cmd_repair() {
 cmd_rm() {
   _crm_provider="${1:-}"
   _crm_name="${2:-}"
-  [ -n "$_crm_provider" ] && [ -n "$_crm_name" ] || die "usage: agentic rm <provider> <name> [--yes]"
+  if [ -z "$_crm_provider" ] || [ -z "$_crm_name" ]; then
+    die "usage: agentic rm <provider> <name> [--yes]"
+  fi
   shift 2
 
   _crm_yes=0
@@ -337,7 +345,9 @@ cmd_restore() {
 cmd_run() {
   _cr_provider="${1:-}"
   _cr_name="${2:-}"
-  [ -n "$_cr_provider" ] && [ -n "$_cr_name" ] || die "usage: agentic run <provider> <name> [--] <args...>"
+  if [ -z "$_cr_provider" ] || [ -z "$_cr_name" ]; then
+    die "usage: agentic run <provider> <name> [--] <args...>"
+  fi
   shift 2
   [ "${1:-}" = "--" ] && shift
 

@@ -43,7 +43,7 @@ provider_login() {
     rm -f "$_pl_live" || return 1
   fi
 
-  CURSOR_CONFIG_DIR="$_pl_home" AGENT_CLI_CREDENTIAL_STORE=file \
+  env CURSOR_CONFIG_DIR="$_pl_home" AGENT_CLI_CREDENTIAL_STORE=file \
     "$(provider_cli_bin)" login || return $?
 
   [ -f "$_pl_live" ] && [ ! -L "$_pl_live" ] || return 1
@@ -53,5 +53,5 @@ provider_login() {
 }
 
 provider_status() {
-  AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login status
+  env AGENT_CLI_CREDENTIAL_STORE=file "$(provider_cli_bin)" login status
 }

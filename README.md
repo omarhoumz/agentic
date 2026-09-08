@@ -9,6 +9,15 @@ for the command model, storage layout, and safety guarantees.
 
 ## Install
 
+### Homebrew (recommended)
+
+```sh
+brew install omarhoumz/tap/agentic
+agentic --help
+```
+
+### From source
+
 Clone this repository, then install the executable as a symlink:
 
 ```sh
@@ -24,7 +33,8 @@ or removes `~/.agentic`. Remove the link with:
 ./install.sh --uninstall
 ```
 
-To enable completions, source the appropriate file from your shell profile:
+To enable completions when installing from source, source the appropriate file
+from your shell profile (Homebrew installs them automatically):
 
 ```sh
 # Bash

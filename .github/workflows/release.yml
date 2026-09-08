@@ -1,0 +1,183 @@
+name: Release
+
+# Push a version tag to cut a release:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Builds a source tarball, publishes a GitHub Release, then updates the formula
+# in omarhoumz/homebrew-tap so `brew upgrade` picks it up.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to re-release"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      sha256: ${{ steps.tarball.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: meta
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify before publishing
+        run: |
+          sudo apt-get update && sudo apt-get install -y shellcheck bats
+          shellcheck -x -P bin:.:providers:lib \
+            bin/agentic lib/*.sh providers/*.sh shell/agentic.sh install.sh \
+            completions/agentic.bash
+          bats test/
+
+      - name: Version in the code matches the tag
+        run: |
+          declared=$(sed -n 's/^AGENTIC_VERSION="\(.*\)"$/\1/p' lib/common.sh)
+          expected="${{ steps.meta.outputs.version }}"
+          if [ "$declared" != "$expected" ]; then
+            echo "::error::lib/common.sh declares $declared but the tag is $expected"
+            exit 1
+          fi
+
+      - name: Build tarball
+        id: tarball
+        run: |
+          tag="${{ steps.meta.outputs.tag }}"
+          name="agentic-${{ steps.meta.outputs.version }}"
+          git archive --format=tar.gz --prefix="$name/" -o "$name.tar.gz" "$tag"
+          sha=$(sha256sum "$name.tar.gz" | cut -d' ' -f1)
+          echo "sha256=$sha" >> "$GITHUB_OUTPUT"
+          echo "path=$name.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "$sha  $name.tar.gz" | tee "$name.tar.gz.sha256"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ steps.meta.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag exists - replacing its assets"
+            gh release upload "$tag" \
+              "${{ steps.tarball.outputs.path }}" \
+              "${{ steps.tarball.outputs.path }}.sha256" --clobber
+          else
+            gh release create "$tag" \
+              --title "$tag" \
+              --generate-notes \
+              "${{ steps.tarball.outputs.path }}" \
+              "${{ steps.tarball.outputs.path }}.sha256"
+          fi
+
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for the tap token
+        id: gate
+        env:
+          TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set - skipping the formula bump"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout the tap
+        if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: omarhoumz/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write the formula
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          SHA256: ${{ needs.release.outputs.sha256 }}
+        run: |
+          mkdir -p tap/Formula
+          cat > tap/Formula/agentic.rb <<EOF
+          class Agentic < Formula
+            desc "Manage multiple Codex and Cursor Agent CLI accounts"
+            homepage "https://github.com/omarhoumz/agentic"
+            # The release asset built by git archive, NOT GitHub's auto-generated
+            # /archive/refs/tags tarball: the sha256 below is computed from the
+            # asset, and the two differ byte for byte.
+            url "https://github.com/omarhoumz/agentic/releases/download/v${VERSION}/agentic-${VERSION}.tar.gz"
+            sha256 "${SHA256}"
+            license "MIT"
+
+            def install
+              libexec.install "lib"
+              libexec.install "providers"
+              libexec.install "shell"
+              libexec.install "completions"
+              libexec.install "bin" => "tools"
+              # Scripts source ../lib relative to their real path, so bin/ and
+              # lib/ must stay adjacent under libexec.
+              bin.install_symlink libexec/"tools/agentic"
+
+              zsh_completion.install libexec/"completions/_agentic" => "_agentic"
+              bash_completion.install libexec/"completions/agentic.bash" => "agentic"
+            end
+
+            def caveats
+              <<~EOS
+                Optional but recommended - stop bare \`codex login\` / \`agent login\`
+                from overwriting a managed account:
+
+                  agentic shell-init
+
+                That adds a marked block to your shell rc file;
+                \`agentic shell-init --remove\` takes it out again. Homebrew is
+                not allowed to edit your dotfiles, which is why this is a
+                command rather than automatic.
+
+                When ~/.agentic/cursor exists, shell-init also exports
+                AGENT_CLI_CREDENTIAL_STORE=file so bare \`agent\` follows the
+                managed file credential store.
+              EOS
+            end
+
+            test do
+              assert_match "agentic", shell_output("#{bin}/agentic --version")
+              assert_match "no account is active",
+                           shell_output("AGENTIC_DIR=#{testpath}/acc #{bin}/agentic which codex")
+            end
+          end
+          EOF
+
+      - name: Commit the bump
+        if: steps.gate.outputs.ok == 'true'
+        working-directory: tap
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          git add Formula/agentic.rb
+          if git diff --cached --quiet; then
+            echo "formula already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "agentic ${VERSION}"
+          git push

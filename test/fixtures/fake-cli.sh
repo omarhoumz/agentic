@@ -25,11 +25,11 @@ case "${1:-}" in
 
     if [ -n "${CODEX_HOME:-}" ]; then
       mkdir -p "$CODEX_HOME"
-      printf '{"token":"x"}\n' > "$CODEX_HOME/auth.json"
+      printf '{"token":"%s"}\n' "${FAKE_TOKEN:-x}" > "$CODEX_HOME/auth.json"
     else
       _fc_live_home="${AGENTIC_CURSOR_LIVE_HOME:-$HOME/.cursor}"
       mkdir -p "$_fc_live_home"
-      printf '{"token":"x"}\n' > "$_fc_live_home/auth.json"
+      printf '{"token":"%s"}\n' "${FAKE_TOKEN:-x}" > "$_fc_live_home/auth.json"
       if [ -n "${CURSOR_CONFIG_DIR:-}" ]; then
         mkdir -p "$CURSOR_CONFIG_DIR"
         printf '{}\n' > "$CURSOR_CONFIG_DIR/cli-config.json"

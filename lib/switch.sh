@@ -63,8 +63,11 @@ activate_account() {
     mkdir -p "$(dirname "$_aa_live")" || die "cannot create live auth directory"
     chmod 700 "$(dirname "$_aa_live")" || die "cannot secure live auth directory"
   fi
-  backup_live_auth
-  adopt_live_auth "$_aa_provider" || return 1
+  # A fresh login already reconciled live auth; its output is not an edit.
+  if [ "${3:-}" != fresh ]; then
+    backup_live_auth
+    adopt_live_auth "$_aa_provider" || return 1
+  fi
   if command -v link_shared_config >/dev/null 2>&1; then
     link_shared_config "$_aa_name"
   fi

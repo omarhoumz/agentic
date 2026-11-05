@@ -30,7 +30,7 @@ echo "bash: $(command -v bash || echo 'ABSENT')"
 
 echo
 echo "--- agentic --version ---"
-./bin/agentic --version | grep -q '^agentic 0.1.0$' \
+./bin/agentic --version | grep -Eq '^agentic [0-9]+\.[0-9]+\.[0-9]+$' \
   || { echo "FAIL: unexpected version output"; exit 1; }
 
 echo

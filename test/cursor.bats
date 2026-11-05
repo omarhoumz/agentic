@@ -24,3 +24,36 @@ load helper
   [[ "$output" == *CURSOR_CONFIG_DIR="$AGENTIC_DIR/cursor/work"* ]] || [[ "$output" == *"cursor/work"* ]]
   [[ "$output" == *AGENT_CLI_CREDENTIAL_STORE=file* ]]
 }
+
+@test "second cursor login does not overwrite the active account" {
+  export AGENTIC_CURSOR_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+  mkdir -p "$AGENTIC_CURSOR_LIVE_HOME"
+  FAKE_TOKEN=AAA run "$AGENTIC" login cursor work
+  [ "$status" -eq 0 ]
+  touch -t 200001010000 "$AGENTIC_DIR/cursor/work/auth.json"
+
+  FAKE_TOKEN=BBB run "$AGENTIC" login cursor personal
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$AGENTIC_DIR/cursor/work/auth.json")" = '{"token":"AAA"}' ]
+  [ "$(cat "$AGENTIC_DIR/cursor/personal/auth.json")" = '{"token":"BBB"}' ]
+  [ "$(resolve_path "$AGENTIC_CURSOR_LIVE_HOME/auth.json")" = "$(resolve_path "$AGENTIC_DIR/cursor/personal/auth.json")" ]
+}
+
+@test "cursor login adopts a pre-existing regular live auth into the active account" {
+  export AGENTIC_CURSOR_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+  mkdir -p "$AGENTIC_CURSOR_LIVE_HOME" "$AGENTIC_DIR/cursor/work"
+  printf '{"token":"old"}\n' > "$AGENTIC_DIR/cursor/work/auth.json"
+  touch -t 200001010000 "$AGENTIC_DIR/cursor/work/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/cursor/.current"
+  # A bare `agent login` replaced the live link with a regular file.
+  printf '{"token":"bare"}\n' > "$AGENTIC_CURSOR_LIVE_HOME/auth.json"
+
+  FAKE_TOKEN=NEW run "$AGENTIC" login cursor personal
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$AGENTIC_DIR/cursor/work/auth.json")" = '{"token":"bare"}' ]
+  [ "$(cat "$AGENTIC_DIR/cursor/personal/auth.json")" = '{"token":"NEW"}' ]
+}

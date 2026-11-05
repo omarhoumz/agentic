@@ -213,6 +213,17 @@ complete_words() {
   command_row "$verb" || return 0
   local -a words=("$@")
 
+  # --rc=<partial>: the value is completed in place.
+  case "${words[cword-1]:-}" in
+    --*=*)
+      if spec=$(row_flag_spec "${words[cword-1]%%=*}"); then
+        case "$spec" in
+          *=FILE) printf '%s\n' '__files__'; return 0 ;;
+        esac
+      fi
+      ;;
+  esac
+
   prev="${words[cword-2]:-}"
   if [ "$cword" -gt 2 ] && spec=$(row_flag_spec "$prev"); then
     case "$spec" in

@@ -68,10 +68,38 @@ load helper
   [ "$output" = "check" ]
 }
 
-@test "zsh completion shim loads" {
+zsh_complete() {
+  zsh -c "
+    agentic() { '$AGENTIC' \"\$@\" }
+    _describe() { print -l -- \${(P)4} }
+    _files() { print FILES }
+    compset() { return 0 }
+    words=($1) CURRENT=$2
+    source '$REPO_ROOT/completions/_agentic'"
+}
+
+@test "zsh completion shim completes verbs through __complete" {
   command -v zsh || skip "zsh not installed"
-  run zsh -c "fpath=('$REPO_ROOT/completions' \$fpath); autoload -Uz compinit && compinit -u && autoload -Uz _agentic && whence -w _agentic"
+  run zsh_complete "agentic che" 2
   [ "$status" -eq 0 ]
+  [[ "$output" == *"check:Check account credentials"* ]] || false
+}
+
+@test "zsh completion shim completes files after --rc" {
+  command -v zsh || skip "zsh not installed"
+  run zsh_complete "agentic shell-init --rc ''" 4
+  [ "$status" -eq 0 ]
+  [ "$output" = "FILES" ]
+
+  run zsh_complete "agentic shell-init --rc=" 3
+  [ "$status" -eq 0 ]
+  [ "$output" = "FILES" ]
+}
+
+@test "__complete asks for a file inside --rc=" {
+  run "$AGENTIC" __complete 2 shell-init --rc=
+  [ "$status" -eq 0 ]
+  [ "$output" = "__files__" ]
 }
 
 @test "unknown flag is rejected per verb" {

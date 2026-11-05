@@ -8,6 +8,7 @@ _agentic() {
   local -a candidates
   for line in ${(f)"$(agentic __complete $(( CURRENT - 1 )) "${(@)words[2,CURRENT]}" 2>/dev/null)"}; do
     if [[ $line == __files__ ]]; then
+      [[ ${words[CURRENT]} == --*=* ]] && compset -P '*='
       _files
       return
     fi

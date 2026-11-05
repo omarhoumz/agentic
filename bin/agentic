@@ -135,13 +135,7 @@ cmd_login() {
   fi
 
   ensure_account_dir "$_cl_provider" "$_cl_name"
-  # Reconcile live auth before the login replaces it; whatever the login then
-  # writes belongs to '$_cl_name', never to the previously active account.
-  backup_live_auth
-  adopt_live_auth "$_cl_provider"
-  provider_login "$_cl_name" || die "login failed - '$_cl_name' was not changed"
-  [ -f "$(provider_auth_artifact "$_cl_name")" ] || die "login did not create an auth.json for '$_cl_name'"
-  activate_account "$_cl_provider" "$_cl_name" fresh
+  live_login "$_cl_provider" "$_cl_name"
 }
 
 cmd_use() {
@@ -165,21 +159,7 @@ cmd_use() {
   validate_name "$_cu_name"
   [ -d "$(account_dir "$_cu_provider" "$_cu_name")" ] || die "no such account: $_cu_name"
   load_provider "$_cu_provider"
-  [ -f "$(provider_auth_artifact "$_cu_name")" ] || die "'$_cu_name' has no auth.json - relogin first"
-
-  _cu_live=$(provider_live_auth)
-  _cu_active=$(get_active "$_cu_provider")
-  if [ "$_cu_force" -eq 0 ] && [ -n "$_cu_active" ] && [ -f "$_cu_live" ] && [ ! -L "$_cu_live" ]; then
-    die "live auth is no longer linked to '$_cu_active' (a bare login may have replaced it)
-  repair it first, or pass --force to preserve it as a backup and switch"
-  fi
-
-  if [ "$_cu_force" -eq 0 ] && command -v provider_is_running >/dev/null 2>&1 && provider_is_running; then
-    die "$_cu_provider is currently running (pid $(provider_running_pids))
-  quit it first, or pass --force"
-  fi
-
-  activate_account "$_cu_provider" "$_cu_name"
+  live_switch "$_cu_provider" "$_cu_name" "$_cu_force"
 }
 
 cmd_relogin() {
@@ -223,7 +203,7 @@ cmd_check() {
   validate_name "$_cc_name"
   load_provider "$_cc_provider"
   _cc_auth=$(provider_auth_artifact "$_cc_name")
-  [ -f "$_cc_auth" ] || die "'$_cc_name' has no auth.json"
+  [ -f "$_cc_auth" ] || die "'$_cc_name' has no $(basename "$_cc_auth")"
 
   if auth_is_parseable "$_cc_auth"; then
     info "structure: valid"
@@ -242,27 +222,6 @@ cmd_check() {
   fi
 }
 
-repair_provider() {
-  _rp_provider="$1"
-  load_provider "$_rp_provider"
-  _rp_live=$(provider_live_auth)
-  _rp_active=$(get_active "$_rp_provider")
-
-  [ -f "$_rp_live" ] && [ ! -L "$_rp_live" ] || return 0
-  if [ -z "$_rp_active" ]; then
-    warn "$_rp_provider live auth is a regular file but no account is active; leaving it in place"
-    return 0
-  fi
-  if [ ! -d "$(account_dir "$_rp_provider" "$_rp_active")" ]; then
-    warn "$_rp_provider active account '$_rp_active' is missing; clearing marker and leaving live auth in place"
-    clear_active "$_rp_provider"
-    return 0
-  fi
-
-  activate_account "$_rp_provider" "$_rp_active"
-  info "repaired $_rp_provider account '$_rp_active'"
-}
-
 cmd_repair() {
   _cr_provider=""
   while [ $# -gt 0 ]; do
@@ -276,13 +235,10 @@ cmd_repair() {
     shift
   done
 
-  if [ -n "$_cr_provider" ]; then
-    repair_provider "$_cr_provider"
-  else
-    for _cr_each in $PROVIDER_LIST; do
-      repair_provider "$_cr_each"
-    done
-  fi
+  for _cr_each in ${_cr_provider:-$PROVIDER_LIST}; do
+    load_provider "$_cr_each"
+    live_repair "$_cr_each"
+  done
 }
 
 cmd_rm() {
@@ -317,18 +273,7 @@ cmd_rm() {
     esac
   fi
 
-  _crm_active=$(get_active "$_crm_provider")
-  _crm_live=$(provider_live_auth)
-  if [ "$_crm_active" = "$_crm_name" ]; then
-    warn "active account '$_crm_name'; live auth link will be backed up and removed"
-    if [ -L "$_crm_live" ] && [ -e "$_crm_live" ] && [ ! -e "$_crm_live.bak" ]; then
-      cp -p "$_crm_live" "$_crm_live.bak" || die "backup failed"
-      harden_auth_file "$_crm_live.bak"
-    fi
-    [ -L "$_crm_live" ] && rm -f "$_crm_live"
-    clear_active "$_crm_provider"
-  fi
-
+  live_detach "$_crm_provider" "$_crm_name"
   rm -rf "$_crm_dir"
   info "removed $_crm_name"
 }
@@ -337,13 +282,7 @@ cmd_restore() {
   [ $# -eq 1 ] || die "usage: agentic restore <provider>"
   validate_provider "$1"
   load_provider "$1"
-  _crs_live=$(provider_live_auth)
-  [ -f "$_crs_live.bak" ] || die "no backup at $_crs_live.bak"
-  rm -f "$_crs_live"
-  cp -p "$_crs_live.bak" "$_crs_live" || die "restore failed"
-  harden_auth_file "$_crs_live"
-  clear_active "$1"
-  info "restored $_crs_live from backup"
+  live_restore "$1"
 }
 
 cmd_run() {

@@ -23,6 +23,8 @@ case "${1:-}" in
       exit 1
     fi
 
+    [ "${FAKE_LOGIN_FAIL:-0}" = 1 ] && exit 1
+
     if [ -n "${CODEX_HOME:-}" ]; then
       mkdir -p "$CODEX_HOME"
       printf '{"token":"%s"}\n' "${FAKE_TOKEN:-x}" > "$CODEX_HOME/auth.json"

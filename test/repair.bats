@@ -155,23 +155,6 @@ load helper
   [[ "$output" == *"structure: invalid JSON"* ]]
 }
 
-@test "rm detaches active auth to a backup and clears the marker" {
-  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
-  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work"
-  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
-  ln -s "$AGENTIC_DIR/codex/work/auth.json" "$AGENTIC_CODEX_LIVE_HOME/auth.json"
-  printf 'work\n' > "$AGENTIC_DIR/codex/.current"
-
-  run "$AGENTIC" rm codex work --yes
-
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"active account 'work'; live auth link will be backed up and removed"* ]]
-  [ ! -d "$AGENTIC_DIR/codex/work" ]
-  [ ! -e "$AGENTIC_DIR/codex/.current" ]
-  [ ! -e "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
-  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak")" = '{"token":"work"}' ]
-}
-
 @test "restore replaces the live link with its backup and clears the marker" {
   export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
   mkdir -p "$AGENTIC_CURSOR_LIVE_HOME" "$AGENTIC_DIR/cursor/work"

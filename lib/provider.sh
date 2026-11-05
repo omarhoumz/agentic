@@ -13,6 +13,9 @@ load_provider() {
   fi
   # Drop optional Codex-only helpers so a later cursor load does not inherit them.
   unset -f link_shared_config 2>/dev/null || true
+  # Defaults a provider file may override; lib/switch.sh calls them.
+  # shellcheck disable=SC2329
+  provider_login_writes_live() { return 1; }
   _lp_file="$AGENTIC_ROOT/providers/$1.sh"
   [ -f "$_lp_file" ] || die "provider script not found: $1"
   # shellcheck source=/dev/null

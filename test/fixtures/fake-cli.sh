@@ -37,6 +37,8 @@ case "${1:-}" in
         printf '{}\n' > "$CURSOR_CONFIG_DIR/cli-config.json"
       fi
     fi
+    # write: the CLI saved a credential, then failed.
+    [ "${FAKE_LOGIN_FAIL:-0}" = write ] && exit 1
     exit 0
     ;;
   status|whoami)

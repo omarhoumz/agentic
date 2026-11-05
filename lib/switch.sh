@@ -166,11 +166,16 @@ live_harvest() {
   harden_auth_file "$auth"
 }
 
-# Put the previously active account back on live auth, then die.
+# Put the previously active account back on live auth, then die. A regular
+# live file the failed login left behind is backed up before the re-link; the
+# re-link runs in a subshell so its own failure cannot hide <message>.
 live_login_failed() {
-  local previous="$2" message="$3"
+  local provider="$1" previous="$2" message="$3"
   if [ -n "$previous" ] && [ -f "$(provider_auth_artifact "$previous")" ]; then
-    live_link "$previous"
+    if [ "$(live_state "$provider")" = regular ] && ! (backup_live_auth); then
+      die "$message (live auth could not be backed up, so it was left in place)"
+    fi
+    (live_link "$previous") || warn "could not re-link '$previous'"
   fi
   die "$message"
 }
@@ -219,11 +224,8 @@ live_detach() {
   [ "$(get_active "$provider")" = "$name" ] || return 0
   live=$(provider_live_auth)
   warn "active account '$name'; live auth link will be backed up and removed"
-  if [ -L "$live" ] && [ -e "$live" ] && [ ! -e "$live.bak" ]; then
-    cp -p "$live" "$live.bak" || die "backup failed"
-    harden_auth_file "$live.bak"
-  fi
   if [ -L "$live" ]; then
+    backup_live_auth
     rm -f "$live" || die "cannot remove $live"
   fi
   clear_active "$provider"
@@ -233,7 +235,9 @@ live_restore() {
   local provider="$1" live
   live=$(provider_live_auth)
   [ -f "$live.bak" ] || die "no backup at $live.bak"
-  rm -f "$live"
+  # .bak already exists, so this writes only a timestamped copy.
+  [ "$(live_state "$provider")" = regular ] && backup_live_auth
+  rm -f "$live" || die "cannot remove $live"
   cp -p "$live.bak" "$live" || die "restore failed"
   harden_auth_file "$live"
   clear_active "$provider"

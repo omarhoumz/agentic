@@ -92,3 +92,50 @@ load helper
   [[ "$output" == *"replaced a broken symlink"* ]] || false
   [ "$(resolve_path "$AGENTIC_CODEX_LIVE_HOME/auth.json")" = "$AGENTIC_DIR/codex/work/auth.json" ]
 }
+
+@test "rm of the active account keeps a timestamped backup when a .bak already exists" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+  printf '{"token":"older"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak"
+  ln -s "$AGENTIC_DIR/codex/work/auth.json" "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/codex/.current"
+
+  run "$AGENTIC" rm codex work --yes
+
+  [ "$status" -eq 0 ]
+  [ ! -d "$AGENTIC_DIR/codex/work" ]
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME"/auth.json.*.bak)" = '{"token":"work"}' ]
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak")" = '{"token":"older"}' ]
+}
+
+@test "cursor login that writes live auth then fails backs it up before re-linking" {
+  export AGENTIC_CURSOR_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+  mkdir -p "$AGENTIC_CURSOR_LIVE_HOME" "$AGENTIC_DIR/cursor/work"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/cursor/work/auth.json"
+  ln -s "$AGENTIC_DIR/cursor/work/auth.json" "$AGENTIC_CURSOR_LIVE_HOME/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/cursor/.current"
+
+  FAKE_LOGIN_FAIL=write FAKE_TOKEN=fresh run "$AGENTIC" login cursor personal
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"login failed"* ]] || false
+  [ "$(cat "$AGENTIC_CURSOR_LIVE_HOME/auth.json.bak")" = '{"token":"fresh"}' ]
+  [ "$(resolve_path "$AGENTIC_CURSOR_LIVE_HOME/auth.json")" = "$AGENTIC_DIR/cursor/work/auth.json" ]
+  [ "$(cat "$AGENTIC_DIR/cursor/work/auth.json")" = '{"token":"work"}' ]
+}
+
+@test "restore backs up a regular live file before replacing it" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME"
+  printf '{"token":"original"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak"
+  printf '{"token":"fresh"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+
+  run "$AGENTIC" restore codex
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json")" = '{"token":"original"}' ]
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak")" = '{"token":"original"}' ]
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME"/auth.json.*.bak)" = '{"token":"fresh"}' ]
+}

@@ -200,12 +200,16 @@ complete_flags() {
 complete_words() {
   local cword="${1:-1}" verb summary args flags provider prev spec
   shift || true
+  # cword is used as an array index, which bash evaluates arithmetically.
+  case "$cword" in
+    '' | *[!0-9]*) return 0 ;;
+  esac
 
   if [ "$cword" -le 1 ]; then
     while IFS='|' read -r verb args flags summary; do
       printf '%s:%s\n' "$verb" "$summary"
     done <<< "$COMMAND_TABLE"
-    printf '%s\n' '--help:Show this help' '--version:Print the version'
+    printf '%s\n' 'help:Show this help' '--help:Show this help' '--version:Print the version'
     return 0
   fi
 

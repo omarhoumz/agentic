@@ -8,9 +8,20 @@ load helper
 @test "__complete lists every verb" {
   run "$AGENTIC" __complete 1 ""
   [ "$status" -eq 0 ]
-  for verb in login relogin use run which list check repair rm restore migrate shell-init; do
-    [[ "$output" == *"$verb:"* ]] || false
+  for verb in help login relogin use run which list check repair rm restore migrate shell-init; do
+    printf '%s\n' "$output" | grep -q "^$verb:" || false
   done
+}
+
+@test "__complete ignores a non-numeric position without evaluating it" {
+  run "$AGENTIC" __complete "HOME[\$(touch $BATS_TEST_TMPDIR/pwned)]" use codex
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ ! -e "$BATS_TEST_TMPDIR/pwned" ]
+
+  run "$AGENTIC" __complete x
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "__complete offers providers then account names" {

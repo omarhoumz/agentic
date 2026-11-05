@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Fake pgrep: reports one matching process.
+printf '4242\n'
+exit 0

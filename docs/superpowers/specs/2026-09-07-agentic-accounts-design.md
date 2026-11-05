@@ -62,16 +62,11 @@ Credentials and CLI-local state live under the account home. Shared non-secret c
 
 ### Provider contract
 
-Each provider implements:
-
-| Capability | Purpose |
-|---|---|
-| `live_home` | Default CLI state dir (e.g. `~/.codex`, `~/.cursor`) |
-| `account_home name` | `~/.agentic/<provider>/<name>` |
-| `run_env name` | Exports required for isolated run |
-| `login` / status | Invoke the underlying CLI login and whoami/status |
-| `auth_artifact` | Path(s) that must be switched/symlinked on `use` |
-| `cli_bin` | `codex` or `agent` |
+Superseded by decision 2 of
+[2026-11-05-agentic-deepening-design.md](2026-11-05-agentic-deepening-design.md):
+a provider file declares facts (`provider_live_home`, `provider_cli_bin`,
+`provider_account_env`, plus optional fact overrides) and `lib/provider.sh`
+derives paths, env, login/status, running checks and shared-config links.
 
 Shared verbs never hardcode CLI-specific paths; they call the active provider.
 

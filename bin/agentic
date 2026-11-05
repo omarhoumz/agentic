@@ -202,6 +202,11 @@ cmd_check() {
   validate_provider "$_cc_provider"
   validate_name "$_cc_name"
   load_provider "$_cc_provider"
+  if [ "$_cc_deep" -eq 1 ] && provider_status_needs_active; then
+    _cc_active=$(get_active "$_cc_provider")
+    [ "$_cc_name" = "$_cc_active" ] ||
+      die "$_cc_provider deep check works only on the active account ('$_cc_active'); run 'agentic use $_cc_provider $_cc_name' first"
+  fi
   _cc_auth=$(provider_auth_artifact "$_cc_name")
   [ -f "$_cc_auth" ] || die "'$_cc_name' has no $(basename "$_cc_auth")"
 
@@ -226,11 +231,12 @@ cmd_repair() {
   _cr_provider=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      codex|cursor)
+      -*) die "unknown option for repair: $1" ;;
+      *)
+        validate_provider "$1"
         [ -z "$_cr_provider" ] || die "repair takes at most one provider"
         _cr_provider="$1"
         ;;
-      *) die "unknown option for repair: $1" ;;
     esac
     shift
   done

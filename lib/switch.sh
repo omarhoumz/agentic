@@ -120,9 +120,7 @@ live_link() {
     mkdir -p "$dir" || die "cannot create live auth directory"
     chmod 700 "$dir" || die "cannot secure live auth directory"
   fi
-  if command -v link_shared_config >/dev/null 2>&1; then
-    link_shared_config "$name"
-  fi
+  link_shared_config "$name"
   ln -sfn "$auth" "$live" || die "cannot link $live"
   harden_auth_file "$auth"
 }
@@ -188,7 +186,7 @@ live_switch() {
   repair it first, or pass --force to preserve it as a backup and switch"
   fi
 
-  if [ "$force" -eq 0 ] && command -v provider_is_running >/dev/null 2>&1 && provider_is_running; then
+  if [ "$force" -eq 0 ] && provider_is_running; then
     die "$provider is currently running (pid $(provider_running_pids))
   quit it first, or pass --force"
   fi

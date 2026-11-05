@@ -62,3 +62,17 @@ load helper
   [ -L "$AGENTIC_DIR/codex/work/config.toml" ]
   [ "$(readlink "$AGENTIC_DIR/codex/work/config.toml")" = "$AGENTIC_CODEX_LIVE_HOME/config.toml" ]
 }
+
+@test "use refuses while codex is running" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_DIR/codex/work" "$AGENTIC_DIR/codex/personal"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+  printf '{"token":"personal"}\n' > "$AGENTIC_DIR/codex/personal/auth.json"
+  "$AGENTIC" use codex work --force
+
+  PATH="$BATS_TEST_DIRNAME/fixtures/bin:$PATH" run "$AGENTIC" use codex personal
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"pid 4242"* ]] || false
+  [ "$("$AGENTIC" which codex)" = "work" ]
+}

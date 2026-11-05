@@ -57,3 +57,18 @@ load helper
   [ "$(cat "$AGENTIC_DIR/cursor/work/auth.json")" = '{"token":"bare"}' ]
   [ "$(cat "$AGENTIC_DIR/cursor/personal/auth.json")" = '{"token":"NEW"}' ]
 }
+
+@test "deep check of a non-active cursor account is refused" {
+  export AGENTIC_CURSOR_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+  mkdir -p "$AGENTIC_DIR/cursor/work" "$AGENTIC_DIR/cursor/personal"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/cursor/work/auth.json"
+  printf '{"token":"personal"}\n' > "$AGENTIC_DIR/cursor/personal/auth.json"
+  "$AGENTIC" use cursor work
+
+  run "$AGENTIC" check cursor personal --deep
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"only on the active account"* ]] || false
+  [[ "$output" == *"work"* ]] || false
+}

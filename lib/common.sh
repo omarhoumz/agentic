@@ -9,7 +9,7 @@
 # lint pass over the library alone cannot see them being used.
 # shellcheck disable=SC2034
 
-AGENTIC_VERSION="0.1.1"
+AGENTIC_VERSION="0.1.2"
 
 # Where saved accounts live. Overridable so the test suite can use a scratch dir.
 : "${AGENTIC_DIR:=$HOME/.agentic}"

@@ -135,9 +135,13 @@ cmd_login() {
   fi
 
   ensure_account_dir "$_cl_provider" "$_cl_name"
+  # Reconcile live auth before the login replaces it; whatever the login then
+  # writes belongs to '$_cl_name', never to the previously active account.
+  backup_live_auth
+  adopt_live_auth "$_cl_provider"
   provider_login "$_cl_name" || die "login failed - '$_cl_name' was not changed"
   [ -f "$(provider_auth_artifact "$_cl_name")" ] || die "login did not create an auth.json for '$_cl_name'"
-  activate_account "$_cl_provider" "$_cl_name"
+  activate_account "$_cl_provider" "$_cl_name" fresh
 }
 
 cmd_use() {

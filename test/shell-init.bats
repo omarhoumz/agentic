@@ -240,3 +240,15 @@ export EDITOR=vim
   [[ "$output" == *"stub-codex login"* ]]
   [[ "$output" != *"managed by agentic"* ]]
 }
+
+@test "shell-init accepts --rc=FILE" {
+  run "$AGENTIC" shell-init --rc="$RC"
+  [ "$status" -eq 0 ]
+  grep -q ">>> agentic shell-init >>>" "$RC"
+}
+
+@test "shell-init --rc without a file fails" {
+  run "$AGENTIC" shell-init --rc
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"--rc needs a file"* ]] || false
+}

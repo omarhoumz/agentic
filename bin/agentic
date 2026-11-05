@@ -28,36 +28,8 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 . "$here/../lib/switch.sh"
 # shellcheck source=../lib/migrate.sh
 . "$here/../lib/migrate.sh"
-
-usage() {
-  cat <<EOF
-${C_BOLD}agentic${C_RESET} - multi-provider CLI account manager
-
-${C_BOLD}USAGE${C_RESET}
-  agentic <verb> <provider> <name> [options]
-  agentic shell-init [--print|--remove] [--rc FILE]
-
-${C_BOLD}COMMANDS${C_RESET}
-  login    <provider> <name> [--force]       Sign in and save an account
-  relogin  <provider> <name>                 Sign in again to an account
-  use      <provider> <name> [--force]       Make an account active
-  run      <provider> <name> [--] <args...>  Run a CLI with an account
-  which    <provider>                        Print the active account
-  list     [<provider>] [--names]            List saved accounts
-  check    <provider> <name> [--deep]        Check account credentials
-  repair   [<provider>]                      Repair replaced live auth
-  rm       <provider> <name> [--yes]         Delete an account
-  restore  <provider>                        Restore backed-up live auth
-  migrate                                   Copy codex-accounts data into agentic
-  shell-init [--remove|--print] [--rc FILE] Install shell wrappers
-
-${C_BOLD}GLOBAL OPTIONS${C_RESET}
-  --help, -h     Show this help
-  --version, -V  Print the version
-
-Version $AGENTIC_VERSION
-EOF
-}
+# shellcheck source=../lib/commands.sh
+. "$here/../lib/commands.sh"
 
 cmd_list() {
   _cl_names=0
@@ -109,65 +81,33 @@ cmd_which() {
 }
 
 cmd_login() {
-  _cl_provider="${1:-}"
-  _cl_name="${2:-}"
-  if [ -z "$_cl_provider" ] || [ -z "$_cl_name" ]; then
-    die "usage: agentic login <provider> <name> [--force]"
-  fi
-  shift 2
+  parse_account_args login "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" dir
+  load_provider "$provider"
 
-  _cl_force=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --force) _cl_force=1 ;;
-      *) die "unknown option for login: $1" ;;
-    esac
-    shift
-  done
-
-  validate_provider "$_cl_provider"
-  validate_name "$_cl_name"
-  load_provider "$_cl_provider"
-
-  _cl_dir=$(account_dir "$_cl_provider" "$_cl_name")
-  if [ -d "$_cl_dir" ] && [ "$_cl_force" -eq 0 ]; then
-    die "account '$_cl_name' already exists - pass --force to replace it"
+  dir=$(account_dir "$provider" "$name")
+  if [ -d "$dir" ] && ! has_flag --force; then
+    die "account '$name' already exists - pass --force to replace it"
   fi
 
-  ensure_account_dir "$_cl_provider" "$_cl_name"
-  live_login "$_cl_provider" "$_cl_name"
+  ensure_account_dir "$provider" "$name"
+  live_login "$provider" "$name"
 }
 
 cmd_use() {
-  _cu_provider="${1:-}"
-  _cu_name="${2:-}"
-  if [ -z "$_cu_provider" ] || [ -z "$_cu_name" ]; then
-    die "usage: agentic use <provider> <name> [--force]"
-  fi
-  shift 2
-
-  _cu_force=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --force) _cu_force=1 ;;
-      *) die "unknown option for use: $1" ;;
-    esac
-    shift
-  done
-
-  validate_provider "$_cu_provider"
-  validate_name "$_cu_name"
-  [ -d "$(account_dir "$_cu_provider" "$_cu_name")" ] || die "no such account: $_cu_name"
-  load_provider "$_cu_provider"
-  live_switch "$_cu_provider" "$_cu_name" "$_cu_force"
+  parse_account_args use "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" force=0
+  has_flag --force && force=1
+  [ -d "$(account_dir "$provider" "$name")" ] || die "no such account: $name"
+  load_provider "$provider"
+  live_switch "$provider" "$name" "$force"
 }
 
 cmd_relogin() {
-  [ $# -eq 2 ] || die "usage: agentic relogin <provider> <name>"
-  validate_provider "$1"
-  validate_name "$2"
-  [ -d "$(account_dir "$1" "$2")" ] || die "no such account: $2"
-  cmd_login "$1" "$2" --force
+  parse_account_args relogin "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME"
+  [ -d "$(account_dir "$provider" "$name")" ] || die "no such account: $name"
+  cmd_login "$provider" "$name" --force
 }
 
 auth_is_parseable() {
@@ -183,45 +123,31 @@ auth_is_parseable() {
 }
 
 cmd_check() {
-  _cc_provider="${1:-}"
-  _cc_name="${2:-}"
-  if [ -z "$_cc_provider" ] || [ -z "$_cc_name" ]; then
-    die "usage: agentic check <provider> <name> [--deep]"
+  parse_account_args check "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" deep=0 active auth
+  has_flag --deep && deep=1
+
+  load_provider "$provider"
+  if [ "$deep" -eq 1 ] && provider_status_needs_active; then
+    active=$(get_active "$provider")
+    [ "$name" = "$active" ] ||
+      die "$provider deep check works only on the active account ('$active'); run 'agentic use $provider $name' first"
   fi
-  shift 2
+  auth=$(provider_auth_artifact "$name")
+  [ -f "$auth" ] || die "'$name' has no $(basename "$auth")"
 
-  _cc_deep=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --deep) _cc_deep=1 ;;
-      *) die "unknown option for check: $1" ;;
-    esac
-    shift
-  done
-
-  validate_provider "$_cc_provider"
-  validate_name "$_cc_name"
-  load_provider "$_cc_provider"
-  if [ "$_cc_deep" -eq 1 ] && provider_status_needs_active; then
-    _cc_active=$(get_active "$_cc_provider")
-    [ "$_cc_name" = "$_cc_active" ] ||
-      die "$_cc_provider deep check works only on the active account ('$_cc_active'); run 'agentic use $_cc_provider $_cc_name' first"
-  fi
-  _cc_auth=$(provider_auth_artifact "$_cc_name")
-  [ -f "$_cc_auth" ] || die "'$_cc_name' has no $(basename "$_cc_auth")"
-
-  if auth_is_parseable "$_cc_auth"; then
+  if auth_is_parseable "$auth"; then
     info "structure: valid"
   else
     warn "structure: invalid JSON"
     return 1
   fi
 
-  if [ "$_cc_deep" -eq 1 ]; then
-    if provider_status "$_cc_name"; then
-      info "$_cc_provider: ok"
+  if [ "$deep" -eq 1 ]; then
+    if provider_status "$name"; then
+      info "$provider: ok"
     else
-      warn "$_cc_provider: status failed"
+      warn "$provider: status failed"
       return 1
     fi
   fi
@@ -248,40 +174,24 @@ cmd_repair() {
 }
 
 cmd_rm() {
-  _crm_provider="${1:-}"
-  _crm_name="${2:-}"
-  if [ -z "$_crm_provider" ] || [ -z "$_crm_name" ]; then
-    die "usage: agentic rm <provider> <name> [--yes]"
-  fi
-  shift 2
+  parse_account_args rm "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" dir reply
+  dir=$(account_dir "$provider" "$name")
+  [ -d "$dir" ] || die "no such account: $name"
+  load_provider "$provider"
 
-  _crm_yes=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --yes|-y) _crm_yes=1 ;;
-      *) die "unknown option for rm: $1" ;;
-    esac
-    shift
-  done
-
-  validate_provider "$_crm_provider"
-  validate_name "$_crm_name"
-  _crm_dir=$(account_dir "$_crm_provider" "$_crm_name")
-  [ -d "$_crm_dir" ] || die "no such account: $_crm_name"
-  load_provider "$_crm_provider"
-
-  if [ "$_crm_yes" -eq 0 ]; then
-    printf "delete account '%s' and its saved credential? [y/N] " "$_crm_name"
-    read -r _crm_reply || _crm_reply=""
-    case "$_crm_reply" in
+  if ! has_flag --yes; then
+    printf "delete account '%s' and its saved credential? [y/N] " "$name"
+    read -r reply || reply=""
+    case "$reply" in
       y|Y|yes|YES) ;;
       *) info "cancelled"; return 0 ;;
     esac
   fi
 
-  live_detach "$_crm_provider" "$_crm_name"
-  rm -rf "$_crm_dir"
-  info "removed $_crm_name"
+  live_detach "$provider" "$name"
+  rm -rf "$dir"
+  info "removed $name"
 }
 
 cmd_restore() {
@@ -292,26 +202,18 @@ cmd_restore() {
 }
 
 cmd_run() {
-  _cr_provider="${1:-}"
-  _cr_name="${2:-}"
-  if [ -z "$_cr_provider" ] || [ -z "$_cr_name" ]; then
-    die "usage: agentic run <provider> <name> [--] <args...>"
-  fi
-  shift 2
-  [ "${1:-}" = "--" ] && shift
+  parse_account_args run "$@"
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" assignment
+  [ -d "$(account_dir "$provider" "$name")" ] || die "no such account: $name"
+  load_provider "$provider"
 
-  validate_provider "$_cr_provider"
-  validate_name "$_cr_name"
-  [ -d "$(account_dir "$_cr_provider" "$_cr_name")" ] || die "no such account: $_cr_name"
-  load_provider "$_cr_provider"
-
-  while IFS= read -r _cr_assignment; do
+  while IFS= read -r assignment; do
     # Export the KEY=value assignment emitted by the provider.
     # shellcheck disable=SC2163
-    [ -n "$_cr_assignment" ] && export "$_cr_assignment"
-  done < <(provider_run_env "$_cr_name")
+    [ -n "$assignment" ] && export "$assignment"
+  done < <(provider_run_env "$name")
 
-  exec "$(provider_cli_bin)" "$@"
+  exec "$(provider_cli_bin)" ${ARG_REST[@]+"${ARG_REST[@]}"}
 }
 
 # --------------------------------------------------------------------------
@@ -435,21 +337,17 @@ rc_remove_integration() {
 }
 
 cmd_shell_init() {
-  rcfile=""; remove=0
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --remove) remove=1 ;;
-      --rc)     shift; [ $# -gt 0 ] || die "--rc needs a file"; rcfile="$1" ;;
-      --rc=*)   rcfile="${1#--rc=}" ;;
-      --print)  shell_snippet_path; return 0 ;;
-      *)        die "unknown option for shell-init: $1" ;;
-    esac
-    shift
-  done
+  parse_flags shell-init "$@"
+  local rcfile="$ARG_RC"
+
+  if has_flag --print; then
+    shell_snippet_path
+    return 0
+  fi
 
   [ -n "$rcfile" ] || rcfile=$(default_rcfile)
 
-  if [ "$remove" -eq 1 ]; then
+  if has_flag --remove; then
     rc_remove_integration "$rcfile"
   else
     rc_add_integration "$rcfile"
@@ -458,21 +356,14 @@ cmd_shell_init() {
 
 [ $# -gt 0 ] || { usage; exit 1; }
 
-case "$1" in
-  help|-h|--help)   usage ;;
-  --version|-V)     print_version agentic ;;
-  list)             shift; cmd_list "$@" ;;
-  which)            shift; cmd_which "$@" ;;
-  login)            shift; cmd_login "$@" ;;
-  relogin)          shift; cmd_relogin "$@" ;;
-  use)              shift; cmd_use "$@" ;;
-  check)            shift; cmd_check "$@" ;;
-  repair)           shift; cmd_repair "$@" ;;
-  rm)               shift; cmd_rm "$@" ;;
-  restore)          shift; cmd_restore "$@" ;;
-  run)              shift; cmd_run "$@" ;;
-  migrate)          shift; cmd_migrate "$@" ;;
-  shell-init)       shift; cmd_shell_init "$@" ;;
+verb="$1"
+shift
+case "$verb" in
+  help|-h|--help) usage ;;
+  --version|-V)   print_version agentic ;;
+  __complete)     complete_words "$@" ;;
   *)
-    die "unknown command: $1 (try 'agentic --help')" ;;
+    command_exists "$verb" || die "unknown command: $verb (try 'agentic --help')"
+    "cmd_$(printf %s "$verb" | tr - _)" "$@"
+    ;;
 esac

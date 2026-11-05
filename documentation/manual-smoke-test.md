@@ -42,16 +42,15 @@ chmod 600 ~/.agentic/cursor/personal/auth.json
 agentic use cursor personal --force
 ```
 
-- [ ] Add a second Cursor account and confirm the first keeps its credentials
+- [ ] Add a second Cursor account and confirm the active one keeps its credentials
 
 ```bash
-# before: record work's checksum
-shasum -a 256 ~/.agentic/cursor/work/auth.json
+# personal is active from the steps above; record its checksum
+shasum -a 256 ~/.agentic/cursor/personal/auth.json
 agentic login cursor work
-agentic login cursor personal
-# after: checksum must match the "before" value
-shasum -a 256 ~/.agentic/cursor/work/auth.json
-readlink ~/.cursor/auth.json   # should point at personal
+# must match the value above
+shasum -a 256 ~/.agentic/cursor/personal/auth.json
+readlink ~/.cursor/auth.json   # should point at work
 ```
 
 ## Step 3: Shell-init

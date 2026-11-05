@@ -87,6 +87,7 @@ set the file-store variable automatically; for `agentic use cursor …`, install
 shell-init (or export the variable manually) before using bare `agent`.
 Cursor `run` uses a separate config directory, so it does not merge the
 normal Cursor configuration.
+`agentic check cursor <name> --deep` works only on the active Cursor account, because the Agent CLI only reads `~/.cursor/auth.json`; on any other account it refuses and names the active account, so run `agentic use cursor <name>` first.
 
 `agentic check` uses either `jq` or `python3` to validate credential JSON.
 

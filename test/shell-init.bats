@@ -70,7 +70,7 @@ wrapped() {
   "$AGENTIC" shell-init --rc "$RC"
   run "$AGENTIC" shell-init --rc "$RC"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"already present"* ]]
+  [[ "$output" == *"already present"* ]] || false
   [ "$(grep -c ">>> agentic shell-init >>>" "$RC")" -eq 1 ]
 }
 
@@ -91,8 +91,8 @@ wrapped() {
   mkdir -p "$AGENTIC_DIR/codex/personal"
   stub_codex 0
   run bash -c "set +e; . '$RC'; codex login"
-  [[ "$output" == *"managed by agentic"* ]]
-  [[ "$output" == *"agentic login codex"* ]]
+  [[ "$output" == *"managed by agentic"* ]] || false
+  [[ "$output" == *"agentic login codex"* ]] || false
 }
 
 @test "shell-init --remove takes out the block" {
@@ -106,7 +106,7 @@ wrapped() {
 @test "shell-init --remove on a clean rc is harmless" {
   run "$AGENTIC" shell-init --rc "$RC" --remove
   [ "$status" -eq 0 ]
-  [[ "$output" == *"no shell integration"* ]]
+  [[ "$output" == *"no shell integration"* ]] || false
 }
 
 @test "shell-init --remove preserves trailing blank lines" {
@@ -160,10 +160,10 @@ export EDITOR=vim
   mkdir -p "$AGENTIC_DIR/codex/personal"
   stub_codex 0
   run wrapped "codex login; echo EXIT=\$?"
-  [[ "$output" == *"managed by agentic"* ]]
-  [[ "$output" == *"agentic login codex"* ]]
-  [[ "$output" == *"EXIT=1"* ]]
-  [[ "$output" != *"stub-codex"* ]]
+  [[ "$output" == *"managed by agentic"* ]] || false
+  [[ "$output" == *"agentic login codex"* ]] || false
+  [[ "$output" == *"EXIT=1"* ]] || false
+  [[ "$output" != *"stub-codex"* ]] || false
 }
 
 @test "codex logout is intercepted" {
@@ -172,9 +172,9 @@ export EDITOR=vim
   mkdir -p "$AGENTIC_DIR/codex/personal"
   stub_codex 0
   run wrapped "codex logout; echo EXIT=\$?"
-  [[ "$output" == *"managed by agentic"* ]]
-  [[ "$output" == *"EXIT=1"* ]]
-  [[ "$output" != *"stub-codex"* ]]
+  [[ "$output" == *"managed by agentic"* ]] || false
+  [[ "$output" == *"EXIT=1"* ]] || false
+  [[ "$output" != *"stub-codex"* ]] || false
 }
 
 @test "codex login status is allowed - it only reads" {
@@ -183,7 +183,7 @@ export EDITOR=vim
   mkdir -p "$AGENTIC_DIR/codex/personal"
   stub_codex 0
   run wrapped "codex login status"
-  [[ "$output" != *"managed by agentic"* ]]
+  [[ "$output" != *"managed by agentic"* ]] || false
 }
 
 @test "agent login is intercepted once a store exists" {
@@ -192,10 +192,10 @@ export EDITOR=vim
   mkdir -p "$AGENTIC_DIR/cursor/personal"
   stub_agent
   run wrapped "agent login; echo EXIT=\$?"
-  [[ "$output" == *"managed by agentic"* ]]
-  [[ "$output" == *"agentic login cursor"* ]]
-  [[ "$output" == *"EXIT=1"* ]]
-  [[ "$output" != *"stub-agent"* ]]
+  [[ "$output" == *"managed by agentic"* ]] || false
+  [[ "$output" == *"agentic login cursor"* ]] || false
+  [[ "$output" == *"EXIT=1"* ]] || false
+  [[ "$output" != *"stub-agent"* ]] || false
 }
 
 @test "sourcing the snippet selects Cursor's file credential store" {
@@ -227,8 +227,8 @@ export EDITOR=vim
   rm -rf "$AGENTIC_DIR"
   stub_codex 0
   run wrapped "codex login"
-  [[ "$output" != *"managed by agentic"* ]]
-  [[ "$output" == *"stub-codex login"* ]]
+  [[ "$output" != *"managed by agentic"* ]] || false
+  [[ "$output" == *"stub-codex login"* ]] || false
 }
 
 @test "the documented bypass works" {
@@ -237,8 +237,8 @@ export EDITOR=vim
   mkdir -p "$AGENTIC_DIR/codex/personal"
   stub_codex 0
   run wrapped "command codex login"
-  [[ "$output" == *"stub-codex login"* ]]
-  [[ "$output" != *"managed by agentic"* ]]
+  [[ "$output" == *"stub-codex login"* ]] || false
+  [[ "$output" != *"managed by agentic"* ]] || false
 }
 
 @test "shell-init accepts --rc=FILE" {

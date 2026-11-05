@@ -21,6 +21,6 @@ load helper
   mkdir -p "$(account_dir codex a)" "$(account_dir codex b)"
   run list_accounts codex
   [ "$status" -eq 0 ]
-  [[ "$output" == *a* ]]
-  [[ "$output" == *b* ]]
+  [[ "$output" == *a* ]] || false
+  [[ "$output" == *b* ]] || false
 }

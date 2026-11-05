@@ -21,8 +21,8 @@ load helper
   mkdir -p "$AGENTIC_DIR/cursor/work"
   echo '{}' > "$AGENTIC_DIR/cursor/work/auth.json"
   run "$AGENTIC" run cursor work --
-  [[ "$output" == *CURSOR_CONFIG_DIR="$AGENTIC_DIR/cursor/work"* ]] || [[ "$output" == *"cursor/work"* ]]
-  [[ "$output" == *AGENT_CLI_CREDENTIAL_STORE=file* ]]
+  [[ "$output" == *CURSOR_CONFIG_DIR="$AGENTIC_DIR/cursor/work"* ]] || [[ "$output" == *"cursor/work"* ]] || false
+  [[ "$output" == *AGENT_CLI_CREDENTIAL_STORE=file* ]] || false
 }
 
 @test "second cursor login does not overwrite the active account" {

@@ -15,8 +15,8 @@ load helper
   source lib/provider.sh
   load_provider cursor
   run provider_run_env work
-  [[ "$output" == *CURSOR_CONFIG_DIR=* ]]
-  [[ "$output" == *AGENT_CLI_CREDENTIAL_STORE=file* ]]
+  [[ "$output" == *CURSOR_CONFIG_DIR=* ]] || false
+  [[ "$output" == *AGENT_CLI_CREDENTIAL_STORE=file* ]] || false
 }
 
 @test "cursor loaded after codex reports no running process" {

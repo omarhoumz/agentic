@@ -38,7 +38,7 @@ load helper
   export CODEX_ACCOUNTS_DIR="$old"
   run bin/agentic migrate
   [ "$status" -eq 0 ]
-  [[ "$output" == *"nothing to migrate"* ]]
+  [[ "$output" == *"nothing to migrate"* ]] || false
   [ "$(cat "$AGENTIC_DIR/codex/work/auth.json")" = '{"existing":1}' ]
 }
 
@@ -46,5 +46,5 @@ load helper
   export CODEX_ACCOUNTS_DIR="$AGENTIC_DIR/no-such-codex-accounts"
   run bin/agentic migrate
   [ "$status" -eq 1 ]
-  [[ "$output" == *"nothing to migrate"* ]]
+  [[ "$output" == *"nothing to migrate"* ]] || false
 }

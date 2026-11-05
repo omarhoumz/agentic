@@ -45,7 +45,7 @@ load helper
   [ ! -L "$AGENTIC_CODEX_LIVE_HOME/auth.json" ]
   run "$AGENTIC" which codex
   [ "$status" -eq 0 ]
-  [[ "$output" == *"no account is active"* ]]
+  [[ "$output" == *"no account is active"* ]] || false
 }
 
 @test "provider-less repair does not leave Codex config link on a Cursor account" {
@@ -141,8 +141,8 @@ load helper
   run "$AGENTIC" check codex work --deep
 
   [ "$status" -eq 0 ]
-  [[ "$output" == *"structure: valid"* ]]
-  [[ "$output" == *"codex: ok"* ]]
+  [[ "$output" == *"structure: valid"* ]] || false
+  [[ "$output" == *"codex: ok"* ]] || false
 }
 
 @test "check rejects malformed stored JSON" {
@@ -152,7 +152,7 @@ load helper
   run "$AGENTIC" check cursor work
 
   [ "$status" -eq 1 ]
-  [[ "$output" == *"structure: invalid JSON"* ]]
+  [[ "$output" == *"structure: invalid JSON"* ]] || false
 }
 
 @test "restore replaces the live link with its backup and clears the marker" {

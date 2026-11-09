@@ -15,7 +15,7 @@
 #   complete_words <cword> <words...>  completion candidates as value:description
 
 COMMAND_TABLE=$(cat <<'EOF'
-login|<provider> <name>|--force|Sign in and save an account
+login|<provider> <name>|--force --existing|Sign in and save an account
 relogin|<provider> <name>||Sign in again to an account
 use|<provider> <name>|--force|Make an account active
 run|<provider> <name> [--] <args...>||Run a CLI with an account

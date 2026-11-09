@@ -17,7 +17,7 @@ AGENTIC_VERSION="0.1.2"
 # Repo root for provider scripts. bin/agentic sets this explicitly; derive when unset.
 : "${AGENTIC_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
 
-PROVIDER_LIST="codex cursor"
+PROVIDER_LIST="codex cursor claude"
 
 # ---------------------------------------------------------------------------
 # Output

@@ -5,10 +5,38 @@
 # Codex: auth under $CODEX_HOME (matches real CODEX_HOME isolation).
 # Cursor: auth under the live cursor home (matches real Agent CLI file store,
 # which ignores CURSOR_CONFIG_DIR for credentials).
+# Claude: `auth login|status|logout` keep a .fake-login sentinel under
+# ${CLAUDE_CONFIG_DIR:-$HOME/.claude}; logout appends to $FAKE_LOG when set.
 
 set -eu
 
 case "${1:-}" in
+  auth)
+    _fc_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    case "${2:-}" in
+      login)
+        [ "${FAKE_LOGIN_FAIL:-0}" = 1 ] && exit 1
+        mkdir -p "$_fc_dir"
+        printf '%s\n' "${FAKE_TOKEN:-x}" > "$_fc_dir/.fake-login"
+        [ -z "${FAKE_LOG:-}" ] || printf 'login %s\n' "$_fc_dir" >> "$FAKE_LOG"
+        exit 0
+        ;;
+      status)
+        if [ -f "$_fc_dir/.fake-login" ]; then
+          printf 'Logged in via %s\n' "$_fc_dir"
+          exit 0
+        fi
+        printf 'Not logged in\n'
+        exit 1
+        ;;
+      logout)
+        [ -z "${FAKE_LOG:-}" ] || printf 'logout %s\n' "$_fc_dir" >> "$FAKE_LOG"
+        rm -f "$_fc_dir/.fake-login"
+        exit 0
+        ;;
+    esac
+    exit 2
+    ;;
   login)
     if [ "${2:-}" = "status" ]; then
       if [ -n "${CODEX_HOME:-}" ] && [ -f "$CODEX_HOME/auth.json" ]; then

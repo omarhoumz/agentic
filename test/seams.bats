@@ -12,7 +12,7 @@ load helper
 }
 
 @test "providers define only the allowed fact functions" {
-  local allowed=" provider_live_home provider_cli_bin provider_account_env provider_login_writes_live provider_process_name provider_shared_config_files provider_status_needs_active "
+  local allowed=" provider_live_home provider_cli_bin provider_account_env provider_login_writes_live provider_process_name provider_shared_config_files provider_status_needs_active provider_switch_mode provider_unset_env provider_login_args provider_status_args provider_logout_args "
   local fn extra=""
   for fn in $(sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(\).*/\2/p' "$REPO_ROOT"/providers/*.sh); do
     case "$allowed" in
@@ -21,6 +21,13 @@ load helper
     esac
   done
   [ -z "$extra" ] || { echo "not allowed in providers/:$extra"; false; }
+}
+
+@test "agentic never names a Claude credential or calls the Keychain tool" {
+  # Claude's refresh tokens rotate; a copy held by agentic breaks the login.
+  run grep -rnE '\.credentials\.json|(^|[;&|(`$[:space:]])security([[:space:]]|$)' \
+    "$REPO_ROOT/bin" "$REPO_ROOT/lib" "$REPO_ROOT/providers" "$REPO_ROOT/shell"
+  [ "$status" -eq 1 ]
 }
 
 @test "every command table verb has a cmd_ function in bin/ or lib/" {

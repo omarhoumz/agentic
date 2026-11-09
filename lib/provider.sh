@@ -5,7 +5,15 @@
 # A provider file (providers/<p>.sh) declares facts only:
 #   required: provider_live_home, provider_cli_bin, provider_account_env <home>
 #   optional: provider_login_writes_live, provider_process_name,
-#             provider_shared_config_files, provider_status_needs_active
+#             provider_shared_config_files, provider_status_needs_active,
+#             provider_switch_mode (link|env), provider_unset_env,
+#             provider_login_args, provider_status_args, provider_logout_args
+#
+# Switch modes:
+#   link  live auth is one file the CLI reads; `use` symlinks it to an account.
+#   env   each account keeps its own login where the CLI put it; agentic only
+#         picks the account's env at launch. provider_live_home is then the
+#         CLI's default home, used for labels only.
 # load_provider resets the optional facts to their defaults before every
 # source, so one provider never inherits another's facts. Everything else
 # (paths, env, login/status, running checks, shared config) lives here.
@@ -30,6 +38,16 @@ load_provider() {
   provider_shared_config_files() { :; }
   # shellcheck disable=SC2329
   provider_status_needs_active() { return 1; }
+  # shellcheck disable=SC2329
+  provider_switch_mode() { printf '%s\n' link; }
+  # shellcheck disable=SC2329
+  provider_unset_env() { :; }
+  # shellcheck disable=SC2329
+  provider_login_args() { printf '%s\n' login; }
+  # shellcheck disable=SC2329
+  provider_status_args() { printf '%s\n' 'login status'; }
+  # shellcheck disable=SC2329
+  provider_logout_args() { :; }
 
   file="$AGENTIC_ROOT/providers/$provider.sh"
   [ -f "$file" ] || die "provider script not found: $provider"
@@ -53,30 +71,72 @@ provider_live_auth() {
   printf '%s\n' "$(provider_live_home)/auth.json"
 }
 
-# KEY=value lines a run of <name> needs.
+provider_env_mode() {
+  [ "$(provider_switch_mode)" = env ]
+}
+
+# provider_live_home with $HOME shown as ~.
+provider_home_label() {
+  local home
+  home=$(provider_live_home)
+  case "$home" in
+    "$HOME"/*) home="~${home#"$HOME"}" ;;
+  esac
+  printf '%s\n' "$home"
+}
+
+# KEY=value lines a run of <name> needs. Dies when they cannot be built.
 provider_run_env() {
   provider_account_env "$(provider_account_home "$1")"
 }
 
-# Run <cmd...> in a subshell with <name>'s env exported.
+# Unset the provider's override variables, then export the KEY=value lines in
+# <env>. Run it in the process that will start the CLI.
+provider_export_env() {
+  local env="$1" var assignment
+  while IFS= read -r var; do
+    [ -n "$var" ] && unset "$var"
+  done < <(provider_unset_env)
+  while IFS= read -r assignment; do
+    # shellcheck disable=SC2163
+    [ -n "$assignment" ] && export "$assignment"
+  done <<< "$env"
+  return 0
+}
+
+# Run <cmd...> in a subshell with <name>'s env. The env is built first, in
+# this shell, so a provider that cannot build it stops agentic rather than
+# letting the command run with the CLI's default account.
 provider_with_env() {
-  local name="$1" assignment
+  local name="$1" env
   shift
+  env=$(provider_run_env "$name") || exit 1
   (
-    while IFS= read -r assignment; do
-      # shellcheck disable=SC2163
-      [ -n "$assignment" ] && export "$assignment"
-    done < <(provider_run_env "$name")
+    provider_export_env "$env"
     "$@"
   )
 }
 
+# Run the CLI for <name> with the args a provider_*_args fact prints.
+provider_cli_with() {
+  local name="$1" fact="$2"
+  local -a args=()
+  read -ra args <<< "$("$fact")"
+  provider_with_env "$name" "$(provider_cli_bin)" ${args[@]+"${args[@]}"}
+}
+
 provider_login() {
-  provider_with_env "$1" "$(provider_cli_bin)" login
+  provider_cli_with "$1" provider_login_args
 }
 
 provider_status() {
-  provider_with_env "$1" "$(provider_cli_bin)" login status
+  provider_cli_with "$1" provider_status_args
+}
+
+# 0 with nothing to do when the provider has no logout.
+provider_logout() {
+  [ -n "$(provider_logout_args)" ] || return 0
+  provider_cli_with "$1" provider_logout_args
 }
 
 provider_is_running() {

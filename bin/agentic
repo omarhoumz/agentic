@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# agentic - multi-provider CLI account manager for Codex and Cursor Agent CLI.
+# agentic - multi-provider CLI account manager for Codex, Cursor Agent CLI and
+# Claude Code.
 
 set -eu
 
@@ -33,6 +34,30 @@ AGENTIC_ROOT="$(cd "$here/.." && pwd -P)"
 # shellcheck source=../lib/rc.sh
 . "$here/../lib/rc.sh"
 
+# Print <provider>'s accounts. Human output marks the active (or, in env mode,
+# selected) account with " *" and tags the default-home record.
+print_accounts() {
+  local provider="$1" names="$2" indent="$3" selected="" default="" name suffix
+  if [ "$names" -eq 0 ]; then
+    load_provider "$provider"
+    if provider_env_mode; then
+      selected=$(env_selected "$provider")
+      default=$(env_default_account "$provider")
+    else
+      selected=$(get_active "$provider")
+    fi
+  fi
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    suffix=""
+    if [ "$names" -eq 0 ]; then
+      [ "$name" != "$default" ] || suffix=" ($(provider_home_label))"
+      [ "$name" != "$selected" ] || suffix="$suffix *"
+    fi
+    printf '%s%s%s\n' "$indent" "$name" "$suffix"
+  done < <(list_accounts "$provider")
+}
+
 cmd_list() {
   _cl_names=0
   _cl_provider=""
@@ -47,33 +72,30 @@ cmd_list() {
     shift
   done
 
-  if [ -z "$_cl_provider" ]; then
-    for _cl_provider in $PROVIDER_LIST; do
-      _cl_accounts=$(list_accounts "$_cl_provider")
-      if [ "$_cl_names" -eq 0 ]; then
-        printf '%s:\n' "$_cl_provider"
-      fi
-      if [ -n "$_cl_accounts" ]; then
-        echo "$_cl_accounts" | while IFS= read -r _cl_name; do
-          [ -n "$_cl_name" ] || continue
-          if [ "$_cl_names" -eq 1 ]; then
-            printf '%s\n' "$_cl_name"
-          else
-            printf '  %s\n' "$_cl_name"
-          fi
-        done
-      fi
-    done
+  if [ -n "$_cl_provider" ]; then
+    validate_provider "$_cl_provider"
+    print_accounts "$_cl_provider" "$_cl_names" ""
     return 0
   fi
 
-  validate_provider "$_cl_provider"
-  list_accounts "$_cl_provider"
+  for _cl_provider in $PROVIDER_LIST; do
+    if [ "$_cl_names" -eq 1 ]; then
+      print_accounts "$_cl_provider" 1 ""
+    else
+      printf '%s:\n' "$_cl_provider"
+      print_accounts "$_cl_provider" 0 "  "
+    fi
+  done
 }
 
 cmd_which() {
   [ $# -eq 1 ] || die "usage: agentic which <provider>"
-  validate_provider "$1"
+  load_provider "$1"
+  if provider_env_mode; then
+    _cw_active=$(env_selected "$1")
+    printf '%s\n' "${_cw_active:-default ($(provider_home_label))}"
+    return 0
+  fi
   _cw_active=$(get_active "$1")
   if [ -n "$_cw_active" ]; then
     printf '%s\n' "$_cw_active"
@@ -86,6 +108,9 @@ cmd_login() {
   parse_account_args login "$@"
   local provider="$ARG_PROVIDER" name="$ARG_NAME" dir created=1
   load_provider "$provider"
+  if has_flag --existing && ! provider_env_mode; then
+    die "--existing works only for providers that keep their own login (claude)"
+  fi
 
   dir=$(account_dir "$provider" "$name")
   if [ -d "$dir" ]; then
@@ -94,7 +119,11 @@ cmd_login() {
   fi
 
   ensure_account_dir "$provider" "$name"
-  live_login "$provider" "$name" "$created"
+  if has_flag --existing; then
+    env_register_default "$provider" "$name" "$created"
+  else
+    live_login "$provider" "$name" "$created"
+  fi
 }
 
 cmd_use() {
@@ -131,6 +160,11 @@ cmd_check() {
   has_flag --deep && deep=1
 
   load_provider "$provider"
+  if provider_env_mode; then
+    provider_status "$name" && return 0
+    warn "$provider: '$name' is not logged in"
+    return 1
+  fi
   if [ "$deep" -eq 1 ] && provider_status_needs_active; then
     active=$(get_active "$provider")
     [ "$name" = "$active" ] ||
@@ -172,6 +206,8 @@ cmd_repair() {
 
   for _cr_each in ${_cr_provider:-$PROVIDER_LIST}; do
     load_provider "$_cr_each"
+    # Repairing every provider skips the ones with no live auth.
+    [ -z "$_cr_provider" ] && provider_env_mode && continue
     live_repair "$_cr_each"
   done
 }
@@ -184,7 +220,11 @@ cmd_rm() {
   load_provider "$provider"
 
   if ! has_flag --yes; then
-    printf "delete account '%s' and its saved credential? [y/N] " "$name"
+    if [ -f "$dir/default-dir" ]; then
+      printf "forget account '%s'? %s and its login are kept [y/N] " "$name" "$(provider_home_label)"
+    else
+      printf "delete account '%s' and its saved credential? [y/N] " "$name"
+    fi
     read -r reply || reply=""
     case "$reply" in
       y|Y|yes|YES) ;;
@@ -206,15 +246,12 @@ cmd_restore() {
 
 cmd_run() {
   parse_account_args run "$@"
-  local provider="$ARG_PROVIDER" name="$ARG_NAME" assignment
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" env
   [ -d "$(account_dir "$provider" "$name")" ] || die "no such account: $name"
   load_provider "$provider"
 
-  while IFS= read -r assignment; do
-    # Export the KEY=value assignment emitted by the provider.
-    # shellcheck disable=SC2163
-    [ -n "$assignment" ] && export "$assignment"
-  done < <(provider_run_env "$name")
+  env=$(provider_run_env "$name") || exit 1
+  provider_export_env "$env"
 
   exec "$(provider_cli_bin)" ${ARG_REST[@]+"${ARG_REST[@]}"}
 }

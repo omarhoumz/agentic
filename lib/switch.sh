@@ -10,6 +10,10 @@
 #   live_repair  <provider>
 #   live_detach  <provider> <name>
 #   live_restore <provider>
+#
+# An env-mode provider (provider_switch_mode = env) has no live auth: each
+# verb hands off to its env_* twin at the bottom of this file, which only
+# runs the CLI with the account's env and keeps the .current marker.
 
 harden_auth_file() {
   [ -f "$1" ] || return 0
@@ -131,6 +135,10 @@ live_activate() {
 }
 
 live_login() {
+  if provider_env_mode; then
+    env_login "$@"
+    return
+  fi
   local provider="$1" name="$2" created="$3" previous live auth outcome
   live=$(provider_live_auth)
   auth=$(provider_auth_artifact "$name")
@@ -191,6 +199,10 @@ forget_created_account() {
 }
 
 live_switch() {
+  if provider_env_mode; then
+    set_active "$1" "$2"
+    return
+  fi
   local provider="$1" name="$2" force="$3" active
   [ -f "$(provider_auth_artifact "$name")" ] ||
     die "'$name' has no $(artifact_basename "$name") - relogin first"
@@ -211,6 +223,7 @@ live_switch() {
 }
 
 live_repair() {
+  provider_env_mode && env_no_live_auth "$1" repair
   local provider="$1" active
   [ "$(live_state "$provider")" = regular ] || return 0
   active=$(get_active "$provider")
@@ -230,6 +243,10 @@ live_repair() {
 }
 
 live_detach() {
+  if provider_env_mode; then
+    env_detach "$@"
+    return
+  fi
   local provider="$1" name="$2" live
   [ "$(get_active "$provider")" = "$name" ] || return 0
   live=$(provider_live_auth)
@@ -242,6 +259,7 @@ live_detach() {
 }
 
 live_restore() {
+  provider_env_mode && env_no_live_auth "$1" restore
   local provider="$1" live
   live=$(provider_live_auth)
   [ -f "$live.bak" ] || die "no backup at $live.bak"
@@ -252,4 +270,102 @@ live_restore() {
   harden_auth_file "$live"
   clear_active "$provider"
   info "restored $live from backup"
+}
+
+# ---------------------------------------------------------------------------
+# env mode
+# ---------------------------------------------------------------------------
+
+env_no_live_auth() {
+  die "$1 has no live auth to $2; each account keeps its own login"
+}
+
+# The record that stands for the CLI's default home (holds default-dir).
+env_default_account() {
+  local name
+  while IFS= read -r name; do
+    [ -f "$(account_dir "$1" "$name")/default-dir" ] && { printf '%s\n' "$name"; return 0; }
+  done < <(list_accounts "$1")
+  return 0
+}
+
+# The account a plain launch opens: .current when its record exists, else the
+# default record. Empty means the CLI's own default home, unregistered.
+env_selected() {
+  local provider="$1" current
+  current=$(get_active "$provider")
+  case "$current" in
+    '' | *[!A-Za-z0-9_-]* | -*) ;;
+    *)
+      if [ -d "$AGENTIC_DIR/$provider/$current" ]; then
+        printf '%s\n' "$current"
+        return 0
+      fi
+      ;;
+  esac
+  env_default_account "$provider"
+}
+
+# Give a non-default account its own config dir, recorded once as the exact
+# string its login is keyed to. Never moved afterwards.
+env_prepare_config() {
+  local home config
+  home=$(provider_account_home "$1")
+  [ -f "$home/default-dir" ] || [ -f "$home/config-path" ] && return 0
+  config="$home/config"
+  mkdir -p "$config" && chmod 700 "$config" || return 1
+  (cd "$config" && pwd -P) > "$home/config-path.tmp" || return 1
+  mv "$home/config-path.tmp" "$home/config-path"
+}
+
+# Log <name> in under its own env. Never changes .current.
+env_login() {
+  local name="$2" created="$3" outcome="was not changed"
+  [ "$created" -eq 1 ] && outcome="was not created"
+  if ! env_prepare_config "$name"; then
+    forget_created_account "$name" "$created"
+    die "cannot create a config dir for '$name' - '$name' $outcome"
+  fi
+  if ! provider_login "$name"; then
+    forget_created_account "$name" "$created"
+    die "login failed - '$name' $outcome"
+  fi
+}
+
+# Register the CLI's default home as <name>; log it in only when it is logged
+# out. <name>'s record already exists (created=1 when this call made it).
+env_register_default() {
+  local provider="$1" name="$2" created="$3" home owner outcome="was not changed"
+  [ "$created" -eq 1 ] && outcome="was not created"
+  home=$(provider_account_home "$name")
+  owner=$(env_default_account "$provider")
+  if [ -n "$owner" ] && [ "$owner" != "$name" ]; then
+    forget_created_account "$name" "$created"
+    die "account '$owner' already uses $(provider_home_label)"
+  fi
+  [ ! -f "$home/config-path" ] ||
+    die "'$name' already has its own config dir; register $(provider_home_label) under another name"
+  : > "$home/default-dir" || die "cannot write $home/default-dir"
+
+  if provider_status "$name" >/dev/null 2>&1; then
+    info "registered '$name' ($(provider_home_label), already logged in)"
+    return 0
+  fi
+  if ! provider_login "$name"; then
+    forget_created_account "$name" "$created"
+    die "login failed - '$name' $outcome"
+  fi
+  info "registered '$name' ($(provider_home_label))"
+}
+
+# Before <name>'s record is deleted: log a non-default account out so its
+# stored login is not orphaned, and stop plain launches from selecting it.
+# The default home's login is never touched.
+env_detach() {
+  local provider="$1" name="$2"
+  if [ ! -f "$(provider_account_home "$name")/default-dir" ]; then
+    provider_logout "$name" || warn "could not log '$name' out; its stored login may remain"
+  fi
+  [ "$(get_active "$provider")" = "$name" ] && clear_active "$provider"
+  return 0
 }

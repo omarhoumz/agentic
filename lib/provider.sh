@@ -30,23 +30,23 @@ load_provider() {
   fi
   unset -f provider_live_home provider_cli_bin provider_account_env 2>/dev/null || true
   # Fact defaults a provider file may override.
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_login_writes_live() { return 1; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_process_name() { :; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_shared_config_files() { :; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_status_needs_active() { return 1; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_switch_mode() { printf '%s\n' link; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_unset_env() { :; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_login_args() { printf '%s\n' login; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_status_args() { printf '%s\n' 'login status'; }
-  # shellcheck disable=SC2329
+  # shellcheck disable=SC2317,SC2329
   provider_logout_args() { :; }
 
   file="$AGENTIC_ROOT/providers/$provider.sh"

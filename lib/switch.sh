@@ -45,7 +45,7 @@ live_state() {
 # Copy live auth content (a regular file, or a symlink's existing target) to
 # <live>.bak when none exists yet, plus a timestamped copy; keep three stamps.
 backup_live_auth() {
-  local live stamp old
+  local live stamp old n
   live=$(provider_live_auth)
   [ -f "$live" ] || return 0
 
@@ -54,10 +54,17 @@ backup_live_auth() {
     harden_auth_file "$live.bak"
   fi
 
+  # A second backup in the same second gets _1, _2...; '_' sorts after '.',
+  # so the pruning below still treats it as the newer one.
   stamp=$(date +%Y%m%d-%H%M%S)
+  n=0
+  while [ -e "$live.$stamp.bak" ]; do
+    n=$((n + 1))
+    stamp="${stamp%%_*}_$n"
+  done
   cp -p "$live" "$live.$stamp.bak" || die "backup failed"
   harden_auth_file "$live.$stamp.bak"
-  printf '%s\n' "$live".*.bak | sort -r | awk 'NR > 3' | while IFS= read -r old; do
+  printf '%s\n' "$live".*.bak | LC_ALL=C sort -r | awk 'NR > 3' | while IFS= read -r old; do
     rm -f "$old"
   done
 }
@@ -250,10 +257,12 @@ live_detach() {
   local provider="$1" name="$2" live
   [ "$(get_active "$provider")" = "$name" ] || return 0
   live=$(provider_live_auth)
-  warn "active account '$name'; live auth link will be backed up and removed"
   if [ -L "$live" ]; then
+    warn "active account '$name'; live auth link will be backed up and removed"
     backup_live_auth
     rm -f "$live" || die "cannot remove $live"
+  else
+    warn "active account '$name'; live auth is not linked to it, so it is left in place"
   fi
   clear_active "$provider"
 }

@@ -125,3 +125,10 @@ zsh_complete() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"usage: agentic check <provider> <name> [--deep]"* ]] || false
 }
+
+@test "__complete reads a zero-padded position as decimal" {
+  run "$AGENTIC" __complete 08 check codex work a b c d ""
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--deep:option"* ]] || false
+}

@@ -82,7 +82,6 @@ ${C_BOLD}agentic${C_RESET} - multi-provider CLI account manager
 
 ${C_BOLD}USAGE${C_RESET}
   agentic <verb> <provider> <name> [options]
-  agentic shell-init [--print|--remove] [--rc FILE]
 
 ${C_BOLD}COMMANDS${C_RESET}
 ${rows}
@@ -204,6 +203,8 @@ complete_words() {
   case "$cword" in
     '' | *[!0-9]*) return 0 ;;
   esac
+  # Leading zeros would make 08 and 09 invalid octal.
+  cword=$((10#$cword))
 
   if [ "$cword" -le 1 ]; then
     while IFS='|' read -r verb args flags summary; do

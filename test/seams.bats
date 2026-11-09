@@ -14,7 +14,7 @@ load helper
 @test "providers define only the allowed fact functions" {
   local allowed=" provider_live_home provider_cli_bin provider_account_env provider_login_writes_live provider_process_name provider_shared_config_files provider_status_needs_active provider_switch_mode provider_unset_env provider_login_args provider_status_args provider_logout_args "
   local fn extra=""
-  for fn in $(sed -nE 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(\).*/\2/p' "$REPO_ROOT"/providers/*.sh); do
+  for fn in $(sed -nE -e 's/^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*\(\).*/\2/p' -e 's/^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*(\{.*)?$/\1/p' "$REPO_ROOT"/providers/*.sh); do
     case "$allowed" in
       *" $fn "*) ;;
       *) extra="$extra $fn" ;;
@@ -47,8 +47,14 @@ load helper
   [ -z "$missing" ] || { echo "no cmd_ function for:$missing"; false; }
 }
 
-@test "every standalone [[ ]] assertion ends with || false" {
-  # bash 3.2 does not fail a bats test on a false [[ ]] that is not its last command.
-  run grep -nE '^[[:space:]]*\[\[.*\]\][[:space:]]*$' "$REPO_ROOT"/test/*.bats
-  [ "$status" -eq 1 ]
+@test "every [[ ]] assertion line ends in || false, and no line starts with !" {
+  # bash 3.2 does not fail a bats test on a false [[ ]] that is not its last
+  # command, in any form (trailing comment, && chain); `! cmd` never fails one
+  # in any bash. Use `run cmd; [ "$status" -eq 1 ]` for a negative.
+  run grep -nE '^[[:space:]]*\[\[' "$REPO_ROOT"/test/*.bats
+  local bad
+  bad=$(printf '%s\n' "$output" | grep -v '|| false' || true)
+  [ -z "$bad" ] || { echo "$bad"; false; }
+  run grep -nE '^[[:space:]]*![[:space:]]' "$REPO_ROOT"/test/*.bats
+  [ "$status" -eq 1 ] || { echo "$output"; false; }
 }

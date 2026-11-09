@@ -173,3 +173,38 @@ load helper
   [[ "$output" == *"login failed - 'work' was not changed"* ]] || false
   [ "$(cat "$AGENTIC_DIR/codex/work/auth.json")" = '{"token":"work"}' ]
 }
+
+@test "two backups in the same second are both kept, newest pruned last" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$BATS_TEST_TMPDIR/bin"
+  printf '#!/bin/sh\necho 20260101-000000\n' > "$BATS_TEST_TMPDIR/bin/date"
+  chmod +x "$BATS_TEST_TMPDIR/bin/date"
+  PATH="$BATS_TEST_TMPDIR/bin:$PATH"
+  . "$REPO_ROOT/lib/store.sh"
+  . "$REPO_ROOT/lib/provider.sh"
+  . "$REPO_ROOT/lib/switch.sh"
+  load_provider codex
+  local live="$AGENTIC_CODEX_LIVE_HOME/auth.json" i
+  for i in 1 2 3 4; do
+    printf '%s\n' "$i" > "$live"
+    backup_live_auth
+  done
+
+  [ "$(cat "$live.20260101-000000_3.bak")" = 4 ]
+  [ "$(cat "$live.20260101-000000_1.bak")" = 2 ]
+  [ ! -e "$live.20260101-000000.bak" ]
+}
+
+@test "rm of the active account leaves an unlinked live file and says so" {
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_CODEX_LIVE_HOME" "$AGENTIC_DIR/codex/work"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+  printf '{"token":"bare"}\n' > "$AGENTIC_CODEX_LIVE_HOME/auth.json"
+  printf 'work\n' > "$AGENTIC_DIR/codex/.current"
+
+  run "$AGENTIC" rm codex work --yes
+
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"not linked to it, so it is left in place"* ]] || false
+  [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json")" = '{"token":"bare"}' ]
+}

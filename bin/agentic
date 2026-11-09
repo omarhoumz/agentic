@@ -167,6 +167,8 @@ cmd_check() {
   fi
   if [ "$deep" -eq 1 ] && provider_status_needs_active; then
     active=$(get_active "$provider")
+    [ -n "$active" ] ||
+      die "$provider deep check works only on the active account, and none is active; run 'agentic use $provider $name' first"
     [ "$name" = "$active" ] ||
       die "$provider deep check works only on the active account ('$active'); run 'agentic use $provider $name' first"
   fi

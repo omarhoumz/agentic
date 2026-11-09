@@ -72,3 +72,14 @@ load helper
   [[ "$output" == *"only on the active account"* ]] || false
   [[ "$output" == *"work"* ]] || false
 }
+
+@test "deep check with no active cursor account says none is active" {
+  mkdir -p "$AGENTIC_DIR/cursor/personal"
+  printf '{"token":"personal"}\n' > "$AGENTIC_DIR/cursor/personal/auth.json"
+
+  run "$AGENTIC" check cursor personal --deep
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"none is active"* ]] || false
+  [[ "$output" != *"('')"* ]] || false
+}

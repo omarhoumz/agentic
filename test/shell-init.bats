@@ -99,7 +99,8 @@ wrapped() {
   "$AGENTIC" shell-init --rc "$RC"
   run "$AGENTIC" shell-init --rc "$RC" --remove
   [ "$status" -eq 0 ]
-  ! grep -q "agentic shell-init" "$RC"
+  run grep -q "agentic shell-init" "$RC"
+  [ "$status" -eq 1 ]
   grep -q "export EDITOR=vim" "$RC"
 }
 
@@ -134,7 +135,8 @@ export EDITOR=vim
   [ "$status" -eq 0 ]
   [ -L "$RC" ]
   [ "$(readlink "$RC")" = "$target" ]
-  ! grep -q "agentic shell-init" "$target"
+  run grep -q "agentic shell-init" "$target"
+  [ "$status" -eq 1 ]
   grep -q "export EDITOR=vim" "$target"
 }
 

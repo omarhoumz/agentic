@@ -2,7 +2,8 @@
 #
 # agentic shell integration - source this from ~/.zshrc or ~/.bashrc
 #
-# Wraps `codex` and `agent` so bare login/logout cannot overwrite stored accounts.
+# Wraps `codex` and `agent` so bare login/logout cannot overwrite stored
+# accounts, and `claude` so it opens the account picked with `agentic use`.
 
 # Only force the file credential store when Cursor accounts are managed here.
 # Codex-only users keep the Agent CLI's default (Keychain on macOS).
@@ -59,3 +60,35 @@ agent() {
 
   command agent "$@"
 }
+
+# ---------------------------------------------------------------------------
+# claude wrapper - defined only when Claude accounts are managed here
+# ---------------------------------------------------------------------------
+#
+# Opens the account `agentic use claude <name>` selected; with none selected,
+# the default home (~/.claude). Login and logout pass through: each account
+# keeps its own login, so they only touch the selected one.
+
+if [ -d "${AGENTIC_DIR:-$HOME/.agentic}/claude" ]; then
+  claude() {
+    local store name
+    store="${AGENTIC_DIR:-$HOME/.agentic}/claude"
+    name=""
+    if [ -f "$store/.current" ]; then
+      name=$(cat "$store/.current" 2>/dev/null)
+    fi
+    if [ -n "$name" ] && [ ! -d "$store/$name" ]; then
+      printf "agentic: claude account '%s' not found; using default (~/.claude)\n" "$name" >&2
+      name=""
+    fi
+
+    if [ -n "$name" ]; then
+      command agentic run claude "$name" -- "$@"
+      return
+    fi
+    (
+      unset CLAUDE_CONFIG_DIR ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+      command claude "$@"
+    )
+  }
+fi

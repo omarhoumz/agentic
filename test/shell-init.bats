@@ -252,3 +252,67 @@ export EDITOR=vim
   [ "$status" -eq 1 ]
   [[ "$output" == *"--rc needs a file"* ]] || false
 }
+
+stub_claude() {
+  cat > "$BATS_TEST_TMPDIR/stub-bin/claude" <<'EOF2'
+#!/usr/bin/env bash
+echo "stub-claude dir=${CLAUDE_CONFIG_DIR:-} key=${ANTHROPIC_API_KEY:-} $*"
+EOF2
+  chmod +x "$BATS_TEST_TMPDIR/stub-bin/claude"
+  ln -sf "$AGENTIC" "$BATS_TEST_TMPDIR/stub-bin/agentic"
+  mkdir -p "$AGENTIC_DIR/claude/work" "$AGENTIC_DIR/claude/personal/config"
+  : > "$AGENTIC_DIR/claude/work/default-dir"
+  printf '%s\n' "$AGENTIC_DIR/claude/personal/config" > "$AGENTIC_DIR/claude/personal/config-path"
+}
+
+@test "claude wrapper opens the default home when nothing is selected" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+  stub_claude
+
+  run wrapped "CLAUDE_CONFIG_DIR=/elsewhere ANTHROPIC_API_KEY=leak; export CLAUDE_CONFIG_DIR ANTHROPIC_API_KEY; claude -p hi"
+
+  [ "$output" = "stub-claude dir= key= -p hi" ]
+}
+
+@test "claude wrapper follows use, and back" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+  stub_claude
+
+  "$AGENTIC" use claude personal
+  run wrapped "claude -p hi"
+  [ "$output" = "stub-claude dir=$AGENTIC_DIR/claude/personal/config key= -p hi" ]
+
+  "$AGENTIC" use claude work
+  run wrapped "claude -p hi"
+  [ "$output" = "stub-claude dir= key= -p hi" ]
+}
+
+@test "claude wrapper warns and opens the default when the selection is gone" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+  stub_claude
+  printf 'gone\n' > "$AGENTIC_DIR/claude/.current"
+
+  run wrapped "claude"
+
+  [ "$output" = "agentic: claude account 'gone' not found; using default (~/.claude)
+stub-claude dir= key= " ]
+}
+
+@test "claude auth login is not blocked" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+  stub_claude
+  "$AGENTIC" use claude personal
+
+  run wrapped "claude auth login"
+
+  [ "$status" -eq 0 ]
+  [ "$output" = "stub-claude dir=$AGENTIC_DIR/claude/personal/config key= auth login" ]
+}
+
+@test "without a claude store there is no claude wrapper" {
+  SNIPPET="$REPO_ROOT/shell/agentic.sh"
+
+  run wrapped "type claude"
+
+  [[ "$output" != *function* ]] || false
+}

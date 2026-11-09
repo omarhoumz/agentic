@@ -9,3 +9,12 @@ load helper
   [ "$status" -eq 0 ]
   [ "$output" = $'work\npersonal' ]
 }
+
+@test "human list marks the active account" {
+  mkdir -p "$AGENTIC_DIR/codex/work" "$AGENTIC_DIR/codex/personal"
+  printf 'work\n' > "$AGENTIC_DIR/codex/.current"
+
+  run "$AGENTIC" list codex
+
+  [ "$output" = $'personal\nwork *' ]
+}

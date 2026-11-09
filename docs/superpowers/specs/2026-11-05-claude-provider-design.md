@@ -106,7 +106,7 @@ Claude does not fit the live-symlink model. It plugs into the deepening spec's f
   - `live_detach` only clears `.current`.
   - `live_repair` and `live_restore` die with the message above.
 - **`provider_account_env <home>`** for Claude prints `CLAUDE_CONFIG_DIR=<home>/config`, or nothing for a default account. A new shared step unsets the variables listed by a new optional fact, `provider_unset_env`; Claude lists the three override variables. Building the env must also _unset_ `CLAUDE_CONFIG_DIR` for a default account even if the caller's shell exported it.
-- `provider_live_home` and `provider_auth_artifact` don't apply to an `env` provider. `load_provider` stops requiring `provider_live_home` when `provider_switch_mode` is `env`.
+- `provider_live_home` and `provider_auth_artifact` don't apply to an `env` provider. Built instead: claude defines `provider_live_home` as `~/.claude` for labels only, and every `live_*` verb branches to its env twin before using it (see plan).
 - **`test/seams.bats` gains a guard:** nothing in `lib/`, `bin/` or `providers/` names `.credentials.json` or calls `security` (Keychain). This keeps the "never touch Claude credentials" anti-goal in CI.
 
 ### Platforms
@@ -144,7 +144,7 @@ macOS and Linux both use the same env model. agentic never touches the credentia
 4. **`check` in env mode.**
    - `cmd_check` branches on `provider_switch_mode`: it skips the artifact and JSON checks and runs the provider's status command with the account env.
    - It exits 1 when logged out, mirroring `claude auth status`.
-   - `provider_login` and `provider_status` gain two optional facts: `provider_login_args`, default `login`, and `provider_status_args`, default `login status`. Claude sets `auth login` and `auth status --json`.
+   - `provider_login` and `provider_status` gain two optional facts: `provider_login_args`, default `login`, and `provider_status_args`, default `login status`. Claude sets `auth login` and `auth status --text` (built: printed verbatim; verified it exits 1 when logged out).
 5. **Stable config path.**
    - At login, the config dir path is canonicalized once with `cd … && pwd -P`, then recorded in `<record>/config-path`.
    - `run`, the wrapper and `check` always read that file; they never re-derive the path. The Keychain is keyed by the exact string.

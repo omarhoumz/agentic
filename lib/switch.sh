@@ -335,7 +335,7 @@ env_login() {
 # Register the CLI's default home as <name>; log it in only when it is logged
 # out. <name>'s record already exists (created=1 when this call made it).
 env_register_default() {
-  local provider="$1" name="$2" created="$3" home owner outcome="was not changed"
+  local provider="$1" name="$2" created="$3" home owner had_marker outcome="was not changed"
   [ "$created" -eq 1 ] && outcome="was not created"
   home=$(provider_account_home "$name")
   owner=$(env_default_account "$provider")
@@ -345,6 +345,8 @@ env_register_default() {
   fi
   [ ! -f "$home/config-path" ] ||
     die "'$name' already has its own config dir; register $(provider_home_label) under another name"
+  had_marker=0
+  [ -f "$home/default-dir" ] && had_marker=1
   : > "$home/default-dir" || die "cannot write $home/default-dir"
 
   if provider_status "$name" >/dev/null 2>&1; then
@@ -352,6 +354,8 @@ env_register_default() {
     return 0
   fi
   if ! provider_login "$name"; then
+    # A marker this call wrote must not outlive the failed login.
+    [ "$had_marker" -eq 1 ] || rm -f "$home/default-dir"
     forget_created_account "$name" "$created"
     die "login failed - '$name' $outcome"
   fi

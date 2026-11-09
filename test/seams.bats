@@ -25,9 +25,17 @@ load helper
 
 @test "agentic never names a Claude credential or calls the Keychain tool" {
   # Claude's refresh tokens rotate; a copy held by agentic breaks the login.
-  run grep -rnE '\.credentials\.json|(^|[;&|(`$[:space:]])security([[:space:]]|$)' \
+  run grep -rnE '\.credentials\.json|(^|[^A-Za-z0-9_-])security([[:space:]"'"'"']|$)' \
     "$REPO_ROOT/bin" "$REPO_ROOT/lib" "$REPO_ROOT/providers" "$REPO_ROOT/shell"
   [ "$status" -eq 1 ]
+}
+
+@test "the claude wrapper unsets the same variables as the provider" {
+  local provider wrapper
+  provider=$(sed -n "/^provider_unset_env/,/^}/s/^ *printf '%s\\\\n' //p" "$REPO_ROOT/providers/claude.sh")
+  wrapper=$(sed -n 's/^ *unset \(CLAUDE_CONFIG_DIR.*\)/\1/p' "$REPO_ROOT/shell/agentic.sh")
+  [ -n "$provider" ]
+  [ "$provider" = "$wrapper" ]
 }
 
 @test "every command table verb has a cmd_ function in bin/ or lib/" {

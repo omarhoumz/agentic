@@ -22,12 +22,19 @@ provider_cli_bin() {
   printf '%s\n' "${AGENTIC_CLAUDE_BIN:-claude}"
 }
 
-# A record without either marker must never fall back to ~/.claude.
+# A record without default-dir must never fall back to ~/.claude, so a missing,
+# unreadable or non-absolute config-path dies.
 provider_account_env() {
+  local config
   [ -f "$1/default-dir" ] && return 0
-  [ -f "$1/config-path" ] ||
+  if [ ! -f "$1/config-path" ] || ! config=$(cat "$1/config-path"); then
     die "claude account '$(basename "$1")' has no config-path; relogin it, or delete $1 by hand"
-  printf 'CLAUDE_CONFIG_DIR=%s\n' "$(cat "$1/config-path")"
+  fi
+  case "$config" in
+    /*) ;;
+    *) die "claude account '$(basename "$1")' has a bad config-path; delete $1 by hand" ;;
+  esac
+  printf 'CLAUDE_CONFIG_DIR=%s\n' "$config"
 }
 
 # These would silently override the account's login.

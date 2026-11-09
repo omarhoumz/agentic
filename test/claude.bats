@@ -91,14 +91,13 @@ dump() {
 
 @test "run gives a non-default account its dir and drops override variables" {
   two_accounts
-  export ANTHROPIC_API_KEY=leak CLAUDE_CODE_OAUTH_TOKEN=leak
+  export ANTHROPIC_API_KEY=leak ANTHROPIC_AUTH_TOKEN=leak CLAUDE_CODE_OAUTH_TOKEN=leak
 
   run dump personal
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"CLAUDE_CONFIG_DIR=$(cat "$AGENTIC_DIR/claude/personal/config-path")"* ]] || false
-  [[ "$output" == *$'ANTHROPIC_API_KEY=\n'* ]] || false
-  [[ "$output" == *"CLAUDE_CODE_OAUTH_TOKEN="$'\n'* ]] || [[ "$output" == *"CLAUDE_CODE_OAUTH_TOKEN=" ]] || false
+  [[ "$output" != *leak* ]] || false
 }
 
 @test "run of the default account unsets an exported CLAUDE_CONFIG_DIR" {
@@ -170,6 +169,32 @@ dump() {
   [ ! -s "$FAKE_LOG" ]
   [ "$(cat "$HOME/.claude/.fake-login")" = w ]
   [ -d "$AGENTIC_DIR/claude/personal" ]
+}
+
+@test "an empty or relative config-path never falls back to ~/.claude" {
+  two_accounts
+
+  : > "$AGENTIC_DIR/claude/personal/config-path"
+  run dump personal
+  [ "$status" -eq 1 ]
+
+  printf 'rel\n' > "$AGENTIC_DIR/claude/personal/config-path"
+  run "$AGENTIC" rm claude personal --yes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"bad config-path"* ]] || false
+
+  [ ! -s "$FAKE_LOG" ]
+  [ "$(cat "$HOME/.claude/.fake-login")" = w ]
+}
+
+@test "a failed --existing login leaves no default-dir marker" {
+  fake_claude
+  mkdir -p "$AGENTIC_DIR/claude/work"
+
+  FAKE_LOGIN_FAIL=1 run "$AGENTIC" login claude work --existing --force
+
+  [ "$status" -eq 1 ]
+  [ ! -e "$AGENTIC_DIR/claude/work/default-dir" ]
 }
 
 @test "failed first login removes the new account; failed relogin keeps it" {

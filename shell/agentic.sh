@@ -77,6 +77,9 @@ if [ -d "${AGENTIC_DIR:-$HOME/.agentic}/claude" ]; then
     if [ -f "$store/.current" ]; then
       name=$(cat "$store/.current" 2>/dev/null)
     fi
+    case "$name" in
+      *[!A-Za-z0-9_-]* | -*) name="?$name" ;;
+    esac
     if [ -n "$name" ] && [ ! -d "$store/$name" ]; then
       printf "agentic: claude account '%s' not found; using default (~/.claude)\n" "$name" >&2
       name=""
@@ -87,6 +90,7 @@ if [ -d "${AGENTIC_DIR:-$HOME/.agentic}/claude" ]; then
       return
     fi
     (
+      # Same list as provider_unset_env in providers/claude.sh (seams.bats).
       unset CLAUDE_CONFIG_DIR ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
       command claude "$@"
     )

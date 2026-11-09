@@ -59,48 +59,40 @@ print_accounts() {
 }
 
 cmd_list() {
-  _cl_names=0
-  _cl_provider=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --names) _cl_names=1 ;;
-      *)
-        [ -z "$_cl_provider" ] || die "list takes at most one provider"
-        _cl_provider="$1"
-        ;;
-    esac
-    shift
-  done
+  local provider names=0
+  parse_provider_args list "$@"
+  has_flag --names && names=1
 
-  if [ -n "$_cl_provider" ]; then
-    validate_provider "$_cl_provider"
-    print_accounts "$_cl_provider" "$_cl_names" ""
+  if [ -n "$ARG_PROVIDER" ]; then
+    print_accounts "$ARG_PROVIDER" "$names" ""
     return 0
   fi
 
-  for _cl_provider in $PROVIDER_LIST; do
-    if [ "$_cl_names" -eq 1 ]; then
-      print_accounts "$_cl_provider" 1 ""
+  for provider in $PROVIDER_LIST; do
+    if [ "$names" -eq 1 ]; then
+      print_accounts "$provider" 1 ""
     else
-      printf '%s:\n' "$_cl_provider"
-      print_accounts "$_cl_provider" 0 "  "
+      printf '%s:\n' "$provider"
+      print_accounts "$provider" 0 "  "
     fi
   done
 }
 
 cmd_which() {
-  [ $# -eq 1 ] || die "usage: agentic which <provider>"
-  load_provider "$1"
+  local provider active
+  parse_provider_args which "$@"
+  provider="$ARG_PROVIDER"
+  load_provider "$provider"
   if provider_env_mode; then
-    _cw_active=$(env_selected "$1")
-    printf '%s\n' "${_cw_active:-default ($(provider_home_label))}"
+    active=$(env_selected "$provider")
+    printf '%s\n' "${active:-default ($(provider_home_label))}"
     return 0
   fi
-  _cw_active=$(get_active "$1")
-  if [ -n "$_cw_active" ]; then
-    printf '%s\n' "$_cw_active"
+  active=$(get_active "$provider")
+  if [ -n "$active" ]; then
+    printf '%s\n' "$active"
   else
-    info "no account is active for $1"
+    info "no account is active for $provider"
   fi
 }
 
@@ -193,24 +185,13 @@ cmd_check() {
 }
 
 cmd_repair() {
-  _cr_provider=""
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      -*) die "unknown option for repair: $1" ;;
-      *)
-        validate_provider "$1"
-        [ -z "$_cr_provider" ] || die "repair takes at most one provider"
-        _cr_provider="$1"
-        ;;
-    esac
-    shift
-  done
-
-  for _cr_each in ${_cr_provider:-$PROVIDER_LIST}; do
-    load_provider "$_cr_each"
+  local provider
+  parse_provider_args repair "$@"
+  for provider in ${ARG_PROVIDER:-$PROVIDER_LIST}; do
+    load_provider "$provider"
     # Repairing every provider skips the ones with no live auth.
-    [ -z "$_cr_provider" ] && provider_env_mode && continue
-    live_repair "$_cr_each"
+    [ -z "$ARG_PROVIDER" ] && provider_env_mode && continue
+    live_repair "$provider"
   done
 }
 
@@ -240,10 +221,9 @@ cmd_rm() {
 }
 
 cmd_restore() {
-  [ $# -eq 1 ] || die "usage: agentic restore <provider>"
-  validate_provider "$1"
-  load_provider "$1"
-  live_restore "$1"
+  parse_provider_args restore "$@"
+  load_provider "$ARG_PROVIDER"
+  live_restore "$ARG_PROVIDER"
 }
 
 cmd_run() {

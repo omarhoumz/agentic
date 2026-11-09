@@ -11,6 +11,9 @@
 #   parse_flags <verb> "$@"        flags only; sets ARG_FLAGS (+ ARG_<NAME> for value flags)
 #   parse_account_args <verb> "$@" <provider> <name> then flags; sets ARG_PROVIDER,
 #                                  ARG_NAME, ARG_FLAGS, ARG_REST
+#   parse_provider_args <verb> "$@" a <provider> (or [<provider>]) row: at most
+#                                  one provider among the flags; sets ARG_PROVIDER,
+#                                  ARG_FLAGS
 #   has_flag <flag>                0 when the last parse saw <flag>
 #   complete_words <cword> <words...>  completion candidates as value:description
 
@@ -179,6 +182,34 @@ parse_account_args() {
       parse_flags "$verb"
       ;;
     *) parse_flags "$verb" "$@" ;;
+  esac
+}
+
+# For rows whose args are <provider> or [<provider>] and whose flags take no
+# value. The provider may come before or after the flags.
+# shellcheck disable=SC2034
+parse_provider_args() {
+  local verb="$1"
+  local -a flags=()
+  shift
+  command_row "$verb" || die "unknown command: $verb"
+  ARG_PROVIDER=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -*) flags[${#flags[@]}]="$1" ;;
+      *)
+        [ -z "$ARG_PROVIDER" ] || die "$verb takes at most one provider"
+        validate_provider "$1"
+        ARG_PROVIDER="$1"
+        ;;
+    esac
+    shift
+  done
+  parse_flags "$verb" ${flags[@]+"${flags[@]}"}
+  case "$ROW_ARGS" in
+    "<provider>"*)
+      [ -n "$ARG_PROVIDER" ] || die "usage: agentic $verb $(command_params "$verb")"
+      ;;
   esac
 }
 

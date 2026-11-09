@@ -132,3 +132,18 @@ zsh_complete() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"--deep:option"* ]] || false
 }
+
+@test "provider-only verbs take flags from the table, in any order" {
+  mkdir -p "$AGENTIC_DIR/codex/work"
+
+  run "$AGENTIC" list --names codex
+  [ "$output" = work ]
+
+  run "$AGENTIC" which codex --names
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"unknown option for which: --names"* ]] || false
+
+  run "$AGENTIC" repair codex cursor
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"repair takes at most one provider"* ]] || false
+}

@@ -139,3 +139,37 @@ load helper
   [ "$(cat "$AGENTIC_CODEX_LIVE_HOME/auth.json.bak")" = '{"token":"original"}' ]
   [ "$(cat "$AGENTIC_CODEX_LIVE_HOME"/auth.json.*.bak)" = '{"token":"fresh"}' ]
 }
+
+@test "failed first login removes the account it created" {
+  export AGENTIC_CODEX_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+
+  FAKE_LOGIN_FAIL=1 run "$AGENTIC" login codex fresh
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"login failed - 'fresh' was not created"* ]] || false
+  [ ! -e "$AGENTIC_DIR/codex/fresh" ]
+}
+
+@test "failed first cursor login removes a harvested credential with the account" {
+  export AGENTIC_CURSOR_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CURSOR_LIVE_HOME="$AGENTIC_DIR/live-cursor"
+
+  FAKE_LOGIN_FAIL=write run "$AGENTIC" login cursor fresh
+
+  [ "$status" -eq 1 ]
+  [ ! -e "$AGENTIC_DIR/cursor/fresh" ]
+}
+
+@test "failed relogin keeps the existing account" {
+  export AGENTIC_CODEX_BIN="$BATS_TEST_DIRNAME/fixtures/fake-cli.sh"
+  export AGENTIC_CODEX_LIVE_HOME="$AGENTIC_DIR/live-codex"
+  mkdir -p "$AGENTIC_DIR/codex/work"
+  printf '{"token":"work"}\n' > "$AGENTIC_DIR/codex/work/auth.json"
+
+  FAKE_LOGIN_FAIL=1 run "$AGENTIC" relogin codex work
+
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"login failed - 'work' was not changed"* ]] || false
+  [ "$(cat "$AGENTIC_DIR/codex/work/auth.json")" = '{"token":"work"}' ]
+}

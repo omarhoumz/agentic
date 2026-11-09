@@ -84,16 +84,17 @@ cmd_which() {
 
 cmd_login() {
   parse_account_args login "$@"
-  local provider="$ARG_PROVIDER" name="$ARG_NAME" dir
+  local provider="$ARG_PROVIDER" name="$ARG_NAME" dir created=1
   load_provider "$provider"
 
   dir=$(account_dir "$provider" "$name")
-  if [ -d "$dir" ] && ! has_flag --force; then
-    die "account '$name' already exists - pass --force to replace it"
+  if [ -d "$dir" ]; then
+    has_flag --force || die "account '$name' already exists - pass --force to replace it"
+    created=0
   fi
 
   ensure_account_dir "$provider" "$name"
-  live_login "$provider" "$name"
+  live_login "$provider" "$name" "$created"
 }
 
 cmd_use() {

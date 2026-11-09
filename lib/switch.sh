@@ -5,7 +5,7 @@
 # loaded before any of these functions are called.
 #
 # Public verbs (all die on error):
-#   live_login   <provider> <name>
+#   live_login   <provider> <name> <created:0|1>
 #   live_switch  <provider> <name> <force:0|1>
 #   live_repair  <provider>
 #   live_detach  <provider> <name>
@@ -131,10 +131,12 @@ live_activate() {
 }
 
 live_login() {
-  local provider="$1" name="$2" previous live auth
+  local provider="$1" name="$2" created="$3" previous live auth outcome
   live=$(provider_live_auth)
   auth=$(provider_auth_artifact "$name")
   previous=$(get_active "$provider")
+  outcome="was not changed"
+  [ "$created" -eq 1 ] && outcome="was not created"
 
   # Reconcile before the login replaces live auth; whatever the login then
   # writes belongs to <name>, never to the previously active account.
@@ -145,11 +147,11 @@ live_login() {
   fi
 
   if provider_login "$name" && live_harvest "$name"; then
-    [ -f "$auth" ] || live_login_failed "$provider" "$previous" \
-      "login did not create an $(artifact_basename "$name") for '$name'"
+    [ -f "$auth" ] || live_login_failed "$provider" "$previous" "$name" "$created" \
+      "login did not create an $(artifact_basename "$name") for '$name' - '$name' $outcome"
     live_activate "$provider" "$name"
   else
-    live_login_failed "$provider" "$previous" "login failed - '$name' was not changed"
+    live_login_failed "$provider" "$previous" "$name" "$created" "login failed - '$name' $outcome"
   fi
 }
 
@@ -166,18 +168,26 @@ live_harvest() {
   harden_auth_file "$auth"
 }
 
-# Put the previously active account back on live auth, then die. A regular
-# live file the failed login left behind is backed up before the re-link; the
-# re-link runs in a subshell so its own failure cannot hide <message>.
+# Put the previously active account back on live auth, remove <name> when this
+# login created it, then die. A regular live file the failed login left behind
+# is backed up before the re-link; the re-link runs in a subshell so its own
+# failure cannot hide <message>.
 live_login_failed() {
-  local provider="$1" previous="$2" message="$3"
+  local provider="$1" previous="$2" name="$3" created="$4" message="$5"
   if [ -n "$previous" ] && [ -f "$(provider_auth_artifact "$previous")" ]; then
     if [ "$(live_state "$provider")" = regular ] && ! (backup_live_auth); then
       die "$message (live auth could not be backed up, so it was left in place)"
     fi
     (live_link "$previous") || warn "could not re-link '$previous'"
   fi
+  forget_created_account "$name" "$created"
   die "$message"
+}
+
+# Remove an account directory that the failing login itself created.
+forget_created_account() {
+  [ "$2" -eq 1 ] || return 0
+  rm -rf "$(provider_account_home "$1")" || warn "could not remove '$1'"
 }
 
 live_switch() {

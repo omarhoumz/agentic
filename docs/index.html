@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentic — Codex and Cursor Agent accounts on one machine</title>
-<meta name="description" content="agentic manages separate CLI accounts for Codex and Cursor Agent. Live auth.json becomes a symlink into ~/.agentic/<provider>/<name>, so a token refresh writes through instead of going stale.">
+<title>agentic — Codex, Cursor Agent and Claude Code accounts on one machine</title>
+<meta name="description" content="agentic manages separate CLI accounts for Codex, Cursor Agent and Claude Code. Codex and Cursor live auth.json becomes a symlink into ~/.agentic/<provider>/<name>, so a token refresh writes through instead of going stale; Claude Code accounts each get their own config directory and run side by side.">
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="canonical" href="https://omarhoumz.github.io/agentic/">
@@ -15,7 +15,7 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://omarhoumz.github.io/agentic/">
 <meta property="og:title" content="agentic">
-<meta property="og:description" content="Codex and Cursor Agent accounts on one machine, without them invalidating each other.">
+<meta property="og:description" content="Codex, Cursor Agent and Claude Code accounts on one machine, without them invalidating each other.">
 <meta property="og:image" content="https://omarhoumz.github.io/agentic/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -282,8 +282,8 @@
 
 <header class="masthead">
   <div class="wrap masthead-in">
-    <p class="wordmark mono">agentic <span>— multi-account manager for Codex and Cursor Agent CLI</span></p>
-    <p class="versions mono">0.1.1</p>
+    <p class="wordmark mono">agentic <span>— multi-account manager for Codex, Cursor Agent and Claude Code CLIs</span></p>
+    <p class="versions mono">0.1.4</p>
   </div>
 </header>
 
@@ -292,9 +292,11 @@
   <!-- 01 what it is --------------------------------------------------------->
   <section aria-labelledby="what">
     <p class="eyebrow"><b>01</b> What it is</p>
-    <h1 id="what">Codex and Cursor Agent accounts on one machine, without them invalidating each other.</h1>
+    <h1 id="what">Codex, Cursor Agent and Claude Code accounts on one machine, without them invalidating each other.</h1>
     <p class="lead">Each CLI assumes one account. <code>agentic</code> gives each account its own directory under
-      <code>~/.agentic/&lt;provider&gt;/</code> and makes the live <code>auth.json</code> a symlink into the active one.</p>
+      <code>~/.agentic/&lt;provider&gt;/</code> and makes the live <code>auth.json</code> a symlink into the active one.
+      Claude Code is different: each account is its own config directory, so accounts run side by side and
+      <code>agentic</code> never touches a Claude credential.</p>
 
     <p>Coming from <code>codex-accounts</code>? <code>agentic migrate</code> copies
       <code>~/.codex-accounts</code> into <code>~/.agentic/codex</code>.</p>
@@ -387,7 +389,7 @@
         <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic --version</p>
         <button class="run-copy" type="button">Copy</button>
       </div>
-      <pre>agentic 0.1.1</pre>
+      <pre>agentic 0.1.4</pre>
     </div>
 
     <p>Same CLI for Cursor Agent accounts — use provider <code>cursor</code>
@@ -399,6 +401,25 @@
         <button class="run-copy" type="button">Copy</button>
       </div>
     </div>
+    <p>And for Claude Code — provider <code>claude</code>. Register your existing <code>~/.claude</code>
+      under a name, then add more accounts; each one gets its own config directory:</p>
+    <div class="install">
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic login claude <span class="arg">work</span> --existing</p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic login claude <span class="arg">personal</span></p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+      <div class="run">
+        <p class="run-cmd"><span class="prompt" aria-hidden="true">$ </span>agentic run claude <span class="arg">personal</span></p>
+        <button class="run-copy" type="button">Copy</button>
+      </div>
+    </div>
+    <p><code>run</code> uses that account in this terminal only, while plain <code>claude</code> elsewhere
+      keeps its own. <code>agentic use claude <span class="arg">personal</span></code> changes which account
+      plain <code>claude</code> opens next, once shell-init is installed; running sessions keep theirs.</p>
   </section>
 
   <!-- 03 quickstart --------------------------------------------------------->
@@ -452,10 +473,12 @@
       </div>
       <pre>codex:
   personal
-<span class="on">*</span> work
-
+  work <span class="on">*</span>
 cursor:
-  personal</pre>
+  personal
+claude:
+  personal
+  work (~/.claude) <span class="on">*</span></pre>
     </div>
   </section>
 
